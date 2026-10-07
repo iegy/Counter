@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1B2421">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>عدّاد</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --stage:#1B2421;
+    --sheet:#EEF2EE;
+    --ink:#14231F;
+    --muted:#5C6D67;
+    --line:#CBD6D0;
+    --accent:#0E5C4F;
+    --accent-soft:#D5E6DF;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  [hidden]{display:none!important}
+  html,body{height:100%;margin:0}
+  body{
+    font-family:"Readex Pro",system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;
+    background:var(--stage);color:var(--ink);
+    display:flex;flex-direction:column;height:100dvh;overflow:hidden;
+    -webkit-user-select:none;user-select:none;
+  }
+  button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+  button:focus-visible,input:focus-visible{outline:3px solid #F2B84B;outline-offset:2px}
+
+  .stage{position:relative;flex:1;min-height:0;background:var(--stage)}
+  .stage video,.stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+
+  .status{
+    position:absolute;top:calc(12px + env(safe-area-inset-top));inset-inline:12px;
+    margin:auto;width:fit-content;max-width:calc(100% - 24px);
+    background:rgba(20,35,31,.82);color:#fff;padding:8px 14px;border-radius:999px;
+    font-size:14px;text-align:center;
+  }
+  .status.error{background:#8A2B1E;border-radius:14px;line-height:1.7}
+
+  .intro{
+    position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;
+    padding:32px 28px;color:#EAF1ED;background:var(--stage);gap:18px;
+  }
+  .intro h1{font-size:64px;line-height:1.1;margin:0;font-weight:600;letter-spacing:0}
+  .intro p{margin:0;font-size:17px;line-height:1.9;color:#B9C8C1;max-width:30em}
+  .go{
+    align-self:flex-start;background:#E8F3EE;color:#0B3D34;font-weight:600;font-size:18px;
+    padding:15px 28px;border-radius:14px;margin-top:6px;
+  }
+  .go:disabled{opacity:.6}
+
+  .sheet{
+    background:var(--sheet);border-radius:22px 22px 0 0;
+    padding:14px 16px calc(14px + env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .total{display:flex;align-items:baseline;gap:10px}
+  .num{font-size:60px;line-height:1;font-weight:600;font-variant-numeric:tabular-nums}
+  .lbl{font-size:16px;color:var(--muted)}
+
+  .seg{display:flex;background:#DCE5E0;border-radius:12px;padding:3px}
+  .seg button{padding:8px 14px;border-radius:9px;font-size:14px;color:var(--muted)}
+  .seg button[aria-pressed="true"]{background:#fff;color:var(--ink);font-weight:500}
+
+  .chips{
+    display:flex;gap:8px;overflow-x:auto;padding:8px 0 6px;min-height:52px;align-items:center;
+    scrollbar-width:none;
+  }
+  .chips::-webkit-scrollbar{display:none}
+  .chip{
+    flex:none;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);
+    padding:7px 12px;border-radius:12px;font-size:15px;
+  }
+  .chip i{width:11px;height:11px;border-radius:50%;display:block}
+  .chip b{font-variant-numeric:tabular-nums;font-weight:600}
+  .chip.off{opacity:.45;text-decoration:line-through}
+  .hint{margin:0;color:var(--muted);font-size:14px;line-height:1.7}
+
+  .settings{
+    border-top:1px solid var(--line);padding:10px 0 4px;display:flex;flex-direction:column;gap:12px;font-size:15px;
+  }
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .row input[type=range]{flex:1;max-width:55%;accent-color:var(--accent)}
+  .row input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}
+  .small{padding:8px 14px;border-radius:10px;background:var(--accent-soft);color:#0B3D34;font-size:14px}
+
+  .actions{display:flex;gap:8px;margin-top:4px}
+  .btn{padding:14px 16px;border-radius:14px;font-size:16px;background:#DCE5E0}
+  .btn.main{flex:1;background:var(--accent);color:#fff;font-weight:500}
+
+  @media (prefers-reduced-motion:no-preference){
+    .num{transition:transform .12s}
+    .num.bump{transform:scale(1.08)}
+  }
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+  <video id="video" playsinline muted></video>
+  <canvas id="overlay"></canvas>
+  <div class="status" id="status" hidden></div>
+
+  <div class="intro" id="intro">
+    <h1>عدّاد</h1>
+    <p>وجّه الكاميرا ناحية أي حاجات حواليك، والتطبيق يتعرف عليها ويعدّها قدامك. التحليل بيتم على موبايلك، والصور مبتتبعتش لأي مكان.</p>
+    <button class="go" id="btnStart">شغّل الكاميرا</button>
+  </div>
+</div>
+
+<section class="sheet" aria-label="نتيجة العد">
+  <div class="top">
+    <div class="total" aria-live="polite">
+      <span class="num" id="total">0</span>
+      <span class="lbl">إجمالي</span>
+    </div>
+    <div class="seg" role="group" aria-label="طريقة العد">
+      <button id="modeLive" aria-pressed="true">لحظي</button>
+      <button id="modeTotal" aria-pressed="false">تراكمي</button>
+    </div>
+  </div>
+
+  <div class="chips" id="chips"></div>
+
+  <div class="settings" id="settings" hidden>
+    <div class="row">
+      <label for="thr">حساسية الاكتشاف: <span id="thrVal">50</span>%</label>
+      <input type="range" id="thr" min="20" max="90" value="50">
+    </div>
+    <div class="row">
+      <label for="accurate">نموذج أدق (أبطأ)</label>
+      <input type="checkbox" id="accurate">
+    </div>
+    <div class="row">
+      <span>الكاميرا</span>
+      <button class="small" id="btnFlip">بدّل الكاميرا</button>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn main" id="btnFreeze">ثبّت الصورة</button>
+    <button class="btn" id="btnReset">صفّر</button>
+    <button class="btn" id="btnSettings" aria-expanded="false">إعدادات</button>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const video = $('#video'), canvas = $('#overlay'), ctx = canvas.getContext('2d');
+  const totalEl = $('#total'), chipsEl = $('#chips'), statusEl = $('#status');
+
+  const AR = {
+    "person":"شخص","bicycle":"دراجة","car":"عربية","motorcycle":"موتوسيكل","airplane":"طيارة","bus":"أتوبيس",
+    "train":"قطر","truck":"شاحنة","boat":"مركب","traffic light":"إشارة مرور","fire hydrant":"حنفية حريق",
+    "stop sign":"علامة قف","parking meter":"عداد ركن","bench":"دكة","bird":"طائر","cat":"قطة","dog":"كلب",
+    "horse":"حصان","sheep":"خروف","cow":"بقرة","elephant":"فيل","bear":"دب","zebra":"حمار وحشي","giraffe":"زرافة",
+    "backpack":"شنطة ضهر","umbrella":"شمسية","handbag":"شنطة يد","tie":"كرافتة","suitcase":"شنطة سفر",
+    "frisbee":"فريسبي","skis":"زلاجات","snowboard":"لوح تزلج","sports ball":"كورة","kite":"طيارة ورق",
+    "baseball bat":"مضرب بيسبول","baseball glove":"قفاز بيسبول","skateboard":"سكيت","surfboard":"لوح ركمجة",
+    "tennis racket":"مضرب تنس","bottle":"زجاجة","wine glass":"كأس","cup":"كوباية","fork":"شوكة","knife":"سكينة",
+    "spoon":"معلقة","bowl":"طبق عميق","banana":"موز","apple":"تفاح","sandwich":"ساندوتش","orange":"برتقال",
+    "broccoli":"بروكلي","carrot":"جزر","hot dog":"هوت دوج","pizza":"بيتزا","donut":"دونات","cake":"كيكة",
+    "chair":"كرسي","couch":"كنبة","potted plant":"نبات","bed":"سرير","dining table":"ترابيزة","toilet":"مرحاض",
+    "tv":"تليفزيون","laptop":"لاب توب","mouse":"ماوس","remote":"ريموت","keyboard":"كيبورد","cell phone":"موبايل",
+    "microwave":"ميكروويف","oven":"فرن","toaster":"محمصة","sink":"حوض","refrigerator":"تلاجة","book":"كتاب",
+    "clock":"ساعة","vase":"مزهرية","scissors":"مقص","teddy bear":"دبدوب","hair drier":"سشوار","toothbrush":"فرشة أسنان"
+  };
+  const arName = c => AR[c] || c;
+  const hue = s => { let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+  const color = c => `hsl(${hue(c)} 75% 58%)`;
+
+  // state
+  let model = null, stream = null, running = false, frozen = false, looping = false;
+  let facing = 'environment', mode = 'live', thr = 0.5, base = 'lite_mobilenet_v2';
+  let lastDets = [], totals = {}, tracks = [], nextId = 1, lastSig = '', lastSum = 0;
+  const hidden = new Set(), known = new Set();
+  const CONFIRM = 4, MAXMISS = 12;
+  let wakeLock = null;
+
+  function setStatus(msg, isError) {
+    if (!msg) { statusEl.hidden = true; return; }
+    statusEl.textContent = msg;
+    statusEl.className = 'status' + (isError ? ' error' : '');
+    statusEl.hidden = false;
+  }
+
+  async function loadModel() {
+    setStatus('بنحمّل النموذج… (أول مرة بتاخد شوية)');
+    model = null;
+    try {
+      model = await cocoSsd.load({ base });
+      setStatus('');
+    } catch (e) {
+      console.error(e);
+      setStatus('النموذج مانزلش. اتأكد من الإنترنت وجرّب تاني.', true);
+      throw e;
+    }
+  }
+
+  async function startCamera() {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (_) {}
+  }
+
+  async function start() {
+    const btn = $('#btnStart');
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      setStatus('الكاميرا مبتشتغلش إلا لو الصفحة مفتوحة من رابط https. ارفع الملف على استضافة، أو افتحه من localhost.', true);
+      return;
+    }
+    btn.disabled = true;
+    try {
+      await Promise.all([loadModel(), startCamera()]);
+    } catch (e) {
+      btn.disabled = false;
+      if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) {
+        setStatus('محتاج تسمح للمتصفح يستخدم الكاميرا من إعدادات الموقع.', true);
+      } else if (e && e.name === 'NotFoundError') {
+        setStatus('مفيش كاميرا متاحة على الجهاز ده.', true);
+      } else if (!model) {
+        /* loadModel already reported */
+      } else {
+        setStatus('الكاميرا مافتحتش. جرّب تاني.', true);
+      }
+      return;
+    }
+    $('#intro').hidden = true;
+    running = true;
+    loop();
+  }
+
+  async function loop() {
+    if (looping) return;
+    looping = true;
+    while (running && !frozen) {
+      if (model && video.readyState >= 2) {
+        try {
+          const preds = await model.detect(video, 100, thr);
+          handle(preds);
+        } catch (e) { console.error(e); }
+      }
+      await new Promise(r => requestAnimationFrame(r));
+    }
+    looping = false;
+  }
+
+  function handle(preds) {
+    const dets = preds.map(p => ({ cls: p.class, score: p.score, bbox: p.bbox, excluded: false }));
+    dets.forEach(d => known.add(d.cls));
+    if (mode === 'total') updateTracks(dets);
+    lastDets = dets;
+    draw();
+    renderCounts();
+  }
+
+  // ---- tracking (for cumulative mode) ----
+  function iou(a, b) {
+    const x1 = Math.max(a[0], b[0]), y1 = Math.max(a[1], b[1]);
+    const x2 = Math.min(a[0] + a[2], b[0] + b[2]), y2 = Math.min(a[1] + a[3], b[1] + b[3]);
+    const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+    const uni = a[2] * a[3] + b[2] * b[3] - inter;
+    return uni > 0 ? inter / uni : 0;
+  }
+  function affinity(d, t) {
+    const o = iou(d.bbox, t.bbox);
+    const dx = (d.bbox[0] + d.bbox[2] / 2) - (t.bbox[0] + t.bbox[2] / 2);
+    const dy = (d.bbox[1] + d.bbox[3] / 2) - (t.bbox[1] + t.bbox[3] / 2);
+    const dist = Math.hypot(dx, dy) / Math.max(t.bbox[2], t.bbox[3], 1);
+    if (o > 0.2) return o + 1;
+    if (dist < 0.6) return 1 - dist;
+    return 0;
+  }
+  function updateTracks(dets) {
+    const pairs = [];
+    dets.forEach((d, i) => tracks.forEach((t, j) => {
+      if (t.cls !== d.cls) return;
+      const a = affinity(d, t);
+      if (a > 0) pairs.push([a, i, j]);
+    }));
+    pairs.sort((p, q) => q[0] - p[0]);
+    const dUsed = new Set(), tUsed = new Set();
+    for (const [, i, j] of pairs) {
+      if (dUsed.has(i) || tUsed.has(j)) continue;
+      dUsed.add(i); tUsed.add(j);
+      const t = tracks[j];
+      t.bbox = dets[i].bbox; t.hits++; t.missed = 0;
+      dets[i].track = t;
+      confirm(t);
+    }
+    tracks.forEach((t, j) => { if (!tUsed.has(j)) t.missed++; });
+    dets.forEach((d, i) => {
+      if (dUsed.has(i)) return;
+      const t = { id: nextId++, cls: d.cls, bbox: d.bbox, hits: 1, missed: 0, counted: false };
+      tracks.push(t);
+      d.track = t;
+    });
+    tracks = tracks.filter(t => t.missed <= MAXMISS);
+  }
+  function confirm(t) {
+    if (!t.counted && t.hits >= CONFIRM) {
+      t.counted = true;
+      totals[t.cls] = (totals[t.cls] || 0) + 1;
+      try { navigator.vibrate?.(12); } catch (_) {}
+    }
+  }
+
+  // ---- drawing ----
+  function draw() {
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    const fs = Math.max(14, Math.round(W / 38));
+    ctx.font = `600 ${fs}px "Readex Pro",system-ui,sans-serif`;
+    ctx.direction = 'rtl'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const lw = Math.max(2, W / 360);
+    const idx = {};
+    for (const d of lastDets) {
+      if (hidden.has(d.cls)) continue;
+      const [x, y, w, h] = d.bbox;
+      const col = d.excluded ? '#9AA6A1' : color(d.cls);
+      const pending = mode === 'total' && d.track && !d.track.counted;
+      ctx.lineWidth = lw; ctx.strokeStyle = col;
+      ctx.setLineDash(d.excluded || pending ? [lw * 3, lw * 3] : []);
+      ctx.strokeRect(x, y, w, h);
+      ctx.setLineDash([]);
+
+      let label = arName(d.cls);
+      if (!d.excluded) {
+        idx[d.cls] = (idx[d.cls] || 0) + 1;
+        label += mode === 'total' && d.track ? ' #' + d.track.id : ' ' + idx[d.cls];
+      }
+      const pad = fs * 0.4, tw = ctx.measureText(label).width, bh = fs * 1.55;
+      const lx = Math.max(0, Math.min(x, W - (tw + pad * 2)));
+      const ly = y - bh >= 0 ? y - bh : y;
+      ctx.fillStyle = col;
+      ctx.fillRect(lx, ly, tw + pad * 2, bh);
+      ctx.fillStyle = '#0B1411';
+      ctx.fillText(label, lx + pad, ly + bh / 2);
+    }
+  }
+
+  // ---- counts UI ----
+  function getCounts() {
+    const c = {};
+    if (mode === 'total') { for (const k in totals) c[k] = totals[k]; }
+    else for (const d of lastDets) { if (!d.excluded) c[d.cls] = (c[d.cls] || 0) + 1; }
+    return c;
+  }
+  function renderCounts() {
+    const c = getCounts();
+    const keys = Object.keys(c).sort((a, b) => c[b] - c[a]);
+    let sum = 0;
+    keys.forEach(k => { if (!hidden.has(k)) sum += c[k]; });
+    hidden.forEach(k => { if (!(k in c) && known.has(k)) keys.push(k); });
+    const sig = sum + '|' + mode + '|' + keys.map(k => k + (c[k] || 0) + hidden.has(k)).join(',');
+    if (sig === lastSig) return;
+    lastSig = sig;
+
+    if (sum !== lastSum) {
+      lastSum = sum;
+      totalEl.classList.add('bump');
+      setTimeout(() => totalEl.classList.remove('bump'), 130);
+    }
+    totalEl.textContent = sum;
+
+    if (!keys.length) {
+      chipsEl.innerHTML = `<p class="hint">${mode === 'total'
+        ? 'اتحرك بالموبايل ببطء حوالين الحاجات، وكل حاجة هتتعد مرة واحدة بس.'
+        : 'وجّه الكاميرا ناحية الحاجات اللي عايز تعدّها.'}</p>`;
+      return;
+    }
+    chipsEl.innerHTML = keys.map(k => `
+      <button class="chip${hidden.has(k) ? ' off' : ''}" data-cls="${k}" aria-pressed="${!hidden.has(k)}">
+        <i style="background:${color(k)}"></i>${arName(k)} <b>${c[k] || 0}</b>
+      </button>`).join('');
+  }
+
+  // ---- interactions ----
+  chipsEl.addEventListener('click', e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    const k = b.dataset.cls;
+    hidden.has(k) ? hidden.delete(k) : hidden.add(k);
+    lastSig = ''; draw(); renderCounts();
+  });
+
+  // tap a box on a frozen frame to exclude a wrong detection
+  canvas.addEventListener('click', e => {
+    if (!frozen) return;
+    const r = canvas.getBoundingClientRect();
+    const s = Math.min(r.width / canvas.width, r.height / canvas.height);
+    const ox = (r.width - canvas.width * s) / 2, oy = (r.height - canvas.height * s) / 2;
+    const px = (e.clientX - r.left - ox) / s, py = (e.clientY - r.top - oy) / s;
+    let hit = null;
+    for (const d of lastDets) {
+      if (hidden.has(d.cls)) continue;
+      const [x, y, w, h] = d.bbox;
+      if (px >= x && px <= x + w && py >= y && py <= y + h) {
+        if (!hit || w * h < hit.bbox[2] * hit.bbox[3]) hit = d;
+      }
+    }
+    if (hit) { hit.excluded = !hit.excluded; lastSig = ''; draw(); renderCounts(); }
+  });
+
+  $('#btnFreeze').addEventListener('click', () => {
+    if (!running) return;
+    frozen = !frozen;
+    const b = $('#btnFreeze');
+    if (frozen) {
+      video.pause();
+      b.textContent = 'كمّل';
+      setStatus('دوس على أي مربع غلط عشان تستبعده من العد.');
+    } else {
+      video.play();
+      b.textContent = 'ثبّت الصورة';
+      setStatus('');
+      loop();
+    }
+  });
+
+  $('#btnReset').addEventListener('click', () => {
+    totals = {}; tracks = []; nextId = 1; hidden.clear();
+    lastDets.forEach(d => { d.excluded = false; });
+    lastSig = ''; draw(); renderCounts();
+  });
+
+  function setMode(m) {
+    mode = m;
+    $('#modeLive').setAttribute('aria-pressed', m === 'live');
+    $('#modeTotal').setAttribute('aria-pressed', m === 'total');
+    tracks = []; lastDets = []; lastSig = '';
+    draw(); renderCounts();
+  }
+  $('#modeLive').addEventListener('click', () => setMode('live'));
+  $('#modeTotal').addEventListener('click', () => setMode('total'));
+
+  $('#btnSettings').addEventListener('click', e => {
+    const s = $('#settings');
+    s.hidden = !s.hidden;
+    e.currentTarget.setAttribute('aria-expanded', String(!s.hidden));
+  });
+  $('#thr').addEventListener('input', e => {
+    $('#thrVal').textContent = e.target.value;
+    thr = e.target.value / 100;
+  });
+  $('#accurate').addEventListener('change', async e => {
+    base = e.target.checked ? 'mobilenet_v2' : 'lite_mobilenet_v2';
+    try { await loadModel(); } catch (_) {}
+  });
+  $('#btnFlip').addEventListener('click', async () => {
+    facing = facing === 'environment' ? 'user' : 'environment';
+    try {
+      if (frozen) { frozen = false; $('#btnFreeze').textContent = 'ثبّت الصورة'; setStatus(''); }
+      await startCamera();
+      loop();
+    } catch (_) { setStatus('الكاميرا التانية مش متاحة.', true); }
+  });
+  $('#btnStart').addEventListener('click', start);
+
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && running) {
+      try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (_) {}
+    }
+  });
+
+  renderCounts();
+})();
+</script>
+</body>
+</html>
