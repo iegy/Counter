@@ -1,0 +1,1340 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1B2421">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>عدّاد</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --stage:#1B2421;
+    --sheet:#EEF2EE;
+    --ink:#14231F;
+    --muted:#5C6D67;
+    --line:#CBD6D0;
+    --accent:#0E5C4F;
+    --accent-soft:#D5E6DF;
+    --amber:#F2B84B;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  [hidden]{display:none!important}
+  body[data-mode="col"] .only-obj, body[data-mode="obj"] .only-col{display:none!important}
+  html,body{height:100%;margin:0}
+  body{
+    font-family:"Readex Pro",system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;
+    background:var(--stage);color:var(--ink);
+    display:flex;flex-direction:column;height:100dvh;overflow:hidden;
+    -webkit-user-select:none;user-select:none;
+  }
+  button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+  button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+
+  .stage{position:relative;flex:1;min-height:0;background:var(--stage)}
+  .stage video,.stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+  #overlay{touch-action:none}
+
+  .status{
+    position:absolute;top:calc(12px + env(safe-area-inset-top));inset-inline:12px;
+    margin:auto;width:fit-content;max-width:calc(100% - 24px);pointer-events:none;
+    background:rgba(20,35,31,.88);color:#fff;padding:9px 16px;border-radius:16px;
+    font-size:14px;line-height:1.7;text-align:center;
+  }
+  .status.error{background:#8A2B1E}
+
+  .intro{
+    position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;
+    padding:32px 28px;color:#EAF1ED;background:var(--stage);gap:16px;overflow:auto;
+  }
+  .intro h1{font-size:60px;line-height:1.15;margin:0;font-weight:600}
+  .intro p{margin:0;font-size:17px;line-height:1.9;color:#B9C8C1;max-width:30em}
+  .intro .btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+  .go{background:#E8F3EE;color:#0B3D34;font-weight:600;font-size:18px;padding:15px 26px;border-radius:14px}
+  .go.alt{background:transparent;color:#E8F3EE;border:1.5px solid #4C605A;font-weight:500}
+  .go:disabled{opacity:.6}
+
+  .sheet{
+    background:var(--sheet);border-radius:22px 22px 0 0;
+    padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;gap:4px;
+  }
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .total{display:flex;align-items:baseline;gap:10px}
+  .num{font-size:56px;line-height:1;font-weight:600;font-variant-numeric:tabular-nums}
+  .lbl{font-size:16px;color:var(--muted)}
+  .stable{font-size:13px;color:#0B3D34;background:var(--accent-soft);padding:3px 10px;border-radius:999px}
+
+  .seg{display:flex;background:#DCE5E0;border-radius:12px;padding:3px}
+  .seg button{padding:8px 14px;border-radius:9px;font-size:14px;color:var(--muted)}
+  .seg button[aria-pressed="true"]{background:#fff;color:var(--ink);font-weight:500}
+
+  .chips{
+    display:flex;gap:8px;overflow-x:auto;padding:6px 0 4px;min-height:48px;align-items:center;
+    scrollbar-width:none;
+  }
+  .chips::-webkit-scrollbar{display:none}
+  .chip{
+    flex:none;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);
+    padding:7px 12px;border-radius:12px;font-size:15px;
+  }
+  .chip i{width:14px;height:14px;border-radius:50%;display:block;border:1px solid rgba(0,0,0,.25);font-style:normal}
+  .chip b{font-variant-numeric:tabular-nums;font-weight:600}
+  .chip .x{color:var(--muted);font-size:17px;line-height:1}
+  .chip.off{opacity:.45;text-decoration:line-through}
+  .hint{margin:0;color:var(--muted);font-size:14px;line-height:1.7}
+
+  .row3{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:2px}
+
+  .actions{display:flex;gap:8px;margin-top:4px}
+  .btn{padding:14px 14px;border-radius:14px;font-size:16px;background:#DCE5E0;white-space:nowrap}
+  .btn.main{flex:1;background:var(--accent);color:#fff;font-weight:500}
+
+  /* drawer */
+  .backdrop{position:fixed;inset:0;background:rgba(10,20,17,.5);z-index:10}
+  .drawer{
+    position:fixed;inset-inline:0;bottom:0;z-index:11;max-height:82dvh;overflow-y:auto;
+    background:var(--sheet);border-radius:22px 22px 0 0;
+    padding:14px 16px calc(18px + env(safe-area-inset-bottom));
+  }
+  .dhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-size:18px}
+  details{border-top:1px solid var(--line);padding:2px 0}
+  summary{cursor:pointer;padding:12px 0;font-weight:500;font-size:16px;list-style:none;display:flex;justify-content:space-between}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"+";color:var(--muted);font-size:20px;line-height:1}
+  details[open] summary::after{content:"−"}
+  .body{display:flex;flex-direction:column;gap:12px;padding:2px 0 12px;font-size:15px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .row input[type=range]{flex:1;max-width:48%;accent-color:var(--accent)}
+  .row input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}
+  .small{padding:8px 14px;border-radius:10px;background:var(--accent-soft);color:#0B3D34;font-size:14px}
+  .small.warn{background:#F2D9D4;color:#7A2A1D}
+  .small:disabled{opacity:.45}
+  .btns{display:flex;gap:8px;flex-wrap:wrap}
+  .list{display:flex;flex-direction:column;gap:8px}
+  .item{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+  .item img{width:64px;height:48px;object-fit:cover;border-radius:8px;background:#ddd;flex:none}
+  .item .meta{flex:1;min-width:0;font-size:14px;line-height:1.6}
+  .item .meta small{color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .empty{color:var(--muted);font-size:14px;margin:0}
+
+  @media (prefers-reduced-motion:no-preference){
+    .num{transition:transform .12s}
+    .num.bump{transform:scale(1.08)}
+  }
+</style>
+</head>
+<body data-mode="obj">
+
+<div class="stage" id="stage">
+  <video id="video" playsinline muted></video>
+  <canvas id="still" hidden></canvas>
+  <canvas id="overlay"></canvas>
+  <div class="status" id="status" hidden></div>
+
+  <div class="intro" id="intro">
+    <h1>عدّاد</h1>
+    <p>وجّه الكاميرا وعدّ أي حاجة. في وضع «أشياء» التطبيق يتعرف على 80 نوع جاهزين، وفي وضع «ألوان» تعلّمه لون القطعة بلمسة وهو يعدّ الباقي (كبسولات، حبوب، أزرار…). التحليل على موبايلك والصور مبتتبعتش لأي مكان.</p>
+    <div class="btns">
+      <button class="go" id="btnStart">شغّل الكاميرا</button>
+      <button class="go alt" id="btnIntroFile">افتح صورة من المعرض</button>
+    </div>
+  </div>
+</div>
+
+<section class="sheet" aria-label="نتيجة العد">
+  <div class="top">
+    <div class="total" aria-live="polite">
+      <span class="num" id="total">0</span>
+      <span class="lbl">إجمالي</span>
+      <span class="stable" id="stable" hidden>ثابت</span>
+    </div>
+    <div class="seg" role="group" aria-label="وضع العد">
+      <button id="modeObj" aria-pressed="true">أشياء</button>
+      <button id="modeCol" aria-pressed="false">ألوان</button>
+    </div>
+  </div>
+
+  <div class="chips" id="chips"></div>
+
+  <div class="row3" id="row3">
+    <div class="seg only-obj" id="subSeg" role="group" aria-label="طريقة العد">
+      <button id="subLive" aria-pressed="true">لحظي</button>
+      <button id="subTotal" aria-pressed="false">تراكمي</button>
+    </div>
+    <div class="seg" id="toolSeg" role="group" aria-label="أداة اللمس" hidden>
+      <button id="toolPick" class="only-col" aria-pressed="true">التقط لون</button>
+      <button id="toolEx" aria-pressed="false">استبعد</button>
+      <button id="toolAdd" aria-pressed="false">أضف</button>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn main" id="btnFreeze">ثبّت الصورة</button>
+    <button class="btn" id="btnSave">احفظ العد</button>
+    <button class="btn" id="btnMore" aria-expanded="false">المزيد</button>
+  </div>
+</section>
+
+<div class="backdrop" id="backdrop" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="المزيد">
+  <div class="dhead"><b>المزيد</b><button class="small" id="btnCloseDrawer">إغلاق</button></div>
+
+  <details open>
+    <summary>الضبط</summary>
+    <div class="body">
+      <div class="row only-obj">
+        <label for="thr">حساسية الاكتشاف: <span id="thrVal">50</span>%</label>
+        <input type="range" id="thr" min="20" max="90">
+      </div>
+      <div class="row only-obj">
+        <label for="accurate">نموذج أدق (أبطأ)</label>
+        <input type="checkbox" id="accurate">
+      </div>
+      <div class="row only-obj">
+        <label for="tiling">دقة عالية للأشياء الصغيرة (أبطأ كتير)</label>
+        <input type="checkbox" id="tiling">
+      </div>
+      <div class="row only-col">
+        <label for="tol">تسامح اللون: <span id="tolVal">22</span></label>
+        <input type="range" id="tol" min="8" max="50">
+      </div>
+      <div class="row only-col">
+        <label for="size">حجم القطعة: <span id="sizeVal">100</span>%</label>
+        <input type="range" id="size" min="50" max="200">
+      </div>
+      <div class="row only-col">
+        <label for="showMask">إظهار المناطق اللي اتعرف عليها</label>
+        <input type="checkbox" id="showMask">
+      </div>
+      <div class="row">
+        <label for="speak">نطق النتيجة لما تثبت</label>
+        <input type="checkbox" id="speak">
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>الأدوات</summary>
+    <div class="body">
+      <div class="row" id="torchRow" hidden><span>الفلاش</span><button class="small" id="btnTorch">شغّل الفلاش</button></div>
+      <div class="row" id="zoomRow" hidden><label for="zoom">التقريب</label><input type="range" id="zoom"></div>
+      <div class="row"><span>الكاميرا</span><button class="small" id="btnFlip">بدّل الكاميرا</button></div>
+      <div class="row"><span>منطقة العد</span>
+        <div class="btns"><button class="small" id="btnRoi">حدد</button><button class="small warn" id="btnRoiClear" disabled>امسح</button></div>
+      </div>
+      <div class="row"><span>صورة من المعرض</span><button class="small" id="btnOpen">اختار صورة</button></div>
+      <div class="row"><span>صورة بالنتيجة</span><button class="small" id="btnExport">احفظ / شارك</button></div>
+      <div class="row"><span>تصفير العد واليدوي</span><button class="small warn" id="btnReset">صفّر</button></div>
+      <div class="row only-col"><span>الألوان الحالية</span><button class="small warn" id="btnClearColors">امسح الألوان</button></div>
+    </div>
+  </details>
+
+  <details class="only-col">
+    <summary>ملفات الألوان</summary>
+    <div class="body">
+      <div class="row"><span>احفظ الألوان الحالية</span><button class="small" id="btnProfSave">احفظ</button></div>
+      <div class="list" id="profList"></div>
+    </div>
+  </details>
+
+  <details>
+    <summary>السجل</summary>
+    <div class="body">
+      <div class="btns"><button class="small" id="btnCsv">تصدير CSV</button><button class="small warn" id="btnHistClear">امسح السجل</button></div>
+      <div class="list" id="histList"></div>
+    </div>
+  </details>
+</aside>
+
+<input type="file" id="file" accept="image/*" hidden>
+
+<script>
+(() => {
+'use strict';
+
+// <core>  (دوال بحتة بدون DOM، متختبرة بشكل منفصل)
+const median = a => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); return s[(s.length - 1) >> 1]; };
+
+function iou(a, b) {
+  const x1 = Math.max(a[0], b[0]), y1 = Math.max(a[1], b[1]);
+  const x2 = Math.min(a[0] + a[2], b[0] + b[2]), y2 = Math.min(a[1] + a[3], b[1] + b[3]);
+  const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+  const uni = a[2] * a[3] + b[2] * b[3] - inter;
+  return uni > 0 ? inter / uni : 0;
+}
+function interOverMin(a, b) {
+  const x1 = Math.max(a[0], b[0]), y1 = Math.max(a[1], b[1]);
+  const x2 = Math.min(a[0] + a[2], b[0] + b[2]), y2 = Math.min(a[1] + a[3], b[1] + b[3]);
+  const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+  const m = Math.min(a[2] * a[3], b[2] * b[3]);
+  return m > 0 ? inter / m : 0;
+}
+// دمج نتائج الاكتشاف المتكررة (من التقسيم) — بنفس النوع فقط
+function nms(dets) {
+  const sorted = [...dets].sort((a, b) => b.score - a.score), keep = [];
+  for (const d of sorted) {
+    let dup = false;
+    for (const k of keep) {
+      if (k.cls !== d.cls) continue;
+      if (iou(k.bbox, d.bbox) > 0.5 || interOverMin(k.bbox, d.bbox) > 0.8) { dup = true; break; }
+    }
+    if (!dup) keep.push(d);
+  }
+  return keep;
+}
+
+const lin = new Float32Array(256);
+for (let i = 0; i < 256; i++) { const c = i / 255; lin[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+const lf = t => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+function labFromRGBA(data, n, out) {
+  for (let p = 0, i = 0; p < n; p++, i += 4) {
+    const R = lin[data[i]], G = lin[data[i + 1]], B = lin[data[i + 2]];
+    const fx = lf((0.4124564 * R + 0.3575761 * G + 0.1804375 * B) / 0.95047);
+    const fy = lf(0.2126729 * R + 0.7151522 * G + 0.0721750 * B);
+    const fz = lf((0.0193339 * R + 0.1191920 * G + 0.9503041 * B) / 1.08883);
+    const o = p * 3;
+    out[o] = 116 * fy - 16; out[o + 1] = 500 * (fx - fy); out[o + 2] = 200 * (fy - fz);
+  }
+}
+
+function segment(lb, n, samples, tol, only) {
+  const mask = new Uint8Array(n), idx = new Uint8Array(n).fill(255), t2 = tol * tol;
+  for (let p = 0; p < n; p++) {
+    const o = p * 3, L = lb[o], a = lb[o + 1], b = lb[o + 2];
+    let best = 1e9, bi = -1;
+    for (let s = 0; s < samples.length; s++) {
+      if (only !== undefined && s !== only) continue;
+      const S = samples[s], dL = (L - S.L) * 0.5, da = a - S.a, db = b - S.b;
+      const d = dL * dL + da * da + db * db;
+      if (d < best) { best = d; bi = s; }
+    }
+    if (bi >= 0 && best < t2) { mask[p] = 1; idx[p] = bi; }
+  }
+  return { mask, idx };
+}
+function erode(src, w, h) {
+  const d = new Uint8Array(src.length);
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const p = y * w + x;
+    if (src[p] && src[p - 1] && src[p + 1] && src[p - w] && src[p + w] &&
+        src[p - w - 1] && src[p - w + 1] && src[p + w - 1] && src[p + w + 1]) d[p] = 1;
+  }
+  return d;
+}
+function dilate(src, w, h) {
+  const d = new Uint8Array(src.length);
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const p = y * w + x;
+    if (src[p] || src[p - 1] || src[p + 1] || src[p - w] || src[p + w] ||
+        src[p - w - 1] || src[p - w + 1] || src[p + w - 1] || src[p + w + 1]) d[p] = 1;
+  }
+  return d;
+}
+function components(mask, w, h) {
+  const labels = new Int32Array(mask.length), stack = new Int32Array(mask.length), comps = [];
+  let id = 0;
+  for (let p = 0; p < mask.length; p++) {
+    if (!mask[p] || labels[p]) continue;
+    id++; let sp = 0; stack[sp++] = p; labels[p] = id;
+    let area = 0, minx = w, miny = h, maxx = 0, maxy = 0, sx = 0, sy = 0;
+    while (sp) {
+      const q = stack[--sp], x = q % w, y = (q / w) | 0;
+      area++; sx += x; sy += y;
+      if (x < minx) minx = x; if (x > maxx) maxx = x;
+      if (y < miny) miny = y; if (y > maxy) maxy = y;
+      if (x > 0) { const r = q - 1; if (mask[r] && !labels[r]) { labels[r] = id; stack[sp++] = r; } }
+      if (x < w - 1) { const r = q + 1; if (mask[r] && !labels[r]) { labels[r] = id; stack[sp++] = r; } }
+      if (y > 0) { const r = q - w; if (mask[r] && !labels[r]) { labels[r] = id; stack[sp++] = r; } }
+      if (y < h - 1) { const r = q + w; if (mask[r] && !labels[r]) { labels[r] = id; stack[sp++] = r; } }
+    }
+    comps.push({ id, area, minx, miny, maxx, maxy, cx: sx / area, cy: sy / area });
+  }
+  return { labels, comps };
+}
+// مسافة كل بكسل من أقرب خلفية (chamfer 3-4) — القمم فيها = مراكز القطع حتى لو ملزوقة
+function distanceTransform(mask, w, h) {
+  const INF = 1e9, d = new Float32Array(mask.length);
+  for (let i = 0; i < d.length; i++) d[i] = mask[i] ? INF : 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const p = y * w + x; if (!d[p]) continue;
+    let v = d[p];
+    if (x === 0 || y === 0) v = Math.min(v, 3);
+    if (x > 0) v = Math.min(v, d[p - 1] + 3);
+    if (y > 0) {
+      v = Math.min(v, d[p - w] + 3);
+      if (x > 0) v = Math.min(v, d[p - w - 1] + 4);
+      if (x < w - 1) v = Math.min(v, d[p - w + 1] + 4);
+    }
+    d[p] = v;
+  }
+  for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) {
+    const p = y * w + x; if (!d[p]) continue;
+    let v = d[p];
+    if (x === w - 1 || y === h - 1) v = Math.min(v, 3);
+    if (x < w - 1) v = Math.min(v, d[p + 1] + 3);
+    if (y < h - 1) {
+      v = Math.min(v, d[p + w] + 3);
+      if (x < w - 1) v = Math.min(v, d[p + w + 1] + 4);
+      if (x > 0) v = Math.min(v, d[p + w - 1] + 4);
+    }
+    d[p] = v;
+  }
+  for (let i = 0; i < d.length; i++) d[i] = d[i] >= INF / 2 ? 0 : d[i] / 3;
+  return d;
+}
+function findPeaks(dt, labels, id, c, w, r) {
+  const cand = [], minR = Math.max(2, r * 0.55);
+  for (let y = c.miny; y <= c.maxy; y++) for (let x = c.minx; x <= c.maxx; x++) {
+    const p = y * w + x;
+    if (labels[p] === id && dt[p] >= minR) cand.push(p);
+  }
+  cand.sort((a, b) => dt[b] - dt[a]);
+  const peaks = [], sep2 = (r * 1.1) * (r * 1.1);
+  for (const p of cand) {
+    const x = p % w, y = (p / w) | 0;
+    let ok = true;
+    for (const q of peaks) { const dx = x - q.x, dy = y - q.y; if (dx * dx + dy * dy < sep2) { ok = false; break; } }
+    if (ok) { peaks.push({ x, y }); if (peaks.length >= 80) break; }
+  }
+  return peaks;
+}
+// عدد القطع في بقعة: القمم هي الأساس، والمساحة بتحدّ من المبالغة
+function estimateCount(area, peakN, ref) {
+  const ar = area / ref;
+  if (ar < 1.5) return 1;
+  const lo = Math.max(1, Math.floor(ar * 0.75)), hi = Math.max(lo, Math.ceil(ar * 1.3));
+  const n = peakN > 0 ? peakN : Math.round(ar);
+  return Math.min(60, Math.max(lo, Math.min(hi, n)));
+}
+// </core>
+
+const $ = s => document.querySelector(s);
+const video = $('#video'), still = $('#still'), canvas = $('#overlay'), ctx = canvas.getContext('2d');
+const totalEl = $('#total'), chipsEl = $('#chips'), statusEl = $('#status'), stableEl = $('#stable');
+
+// ---------- التخزين والإعدادات ----------
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (_) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (_) { return false; } }
+};
+const defaults = { mode: 'obj', sub: 'live', thr: 50, tol: 22, size: 100, accurate: false, tiling: false, showMask: true, speak: false };
+const S = Object.assign({}, defaults, store.get('counter.settings.v1', {}));
+const saveSettings = () => store.set('counter.settings.v1', S);
+
+const AR = {
+  "person":"شخص","bicycle":"دراجة","car":"عربية","motorcycle":"موتوسيكل","airplane":"طيارة","bus":"أتوبيس",
+  "train":"قطر","truck":"شاحنة","boat":"مركب","traffic light":"إشارة مرور","fire hydrant":"حنفية حريق",
+  "stop sign":"علامة قف","parking meter":"عداد ركن","bench":"دكة","bird":"طائر","cat":"قطة","dog":"كلب",
+  "horse":"حصان","sheep":"خروف","cow":"بقرة","elephant":"فيل","bear":"دب","zebra":"حمار وحشي","giraffe":"زرافة",
+  "backpack":"شنطة ضهر","umbrella":"شمسية","handbag":"شنطة يد","tie":"كرافتة","suitcase":"شنطة سفر",
+  "frisbee":"فريسبي","skis":"زلاجات","snowboard":"لوح تزلج","sports ball":"كورة","kite":"طيارة ورق",
+  "baseball bat":"مضرب بيسبول","baseball glove":"قفاز بيسبول","skateboard":"سكيت","surfboard":"لوح ركمجة",
+  "tennis racket":"مضرب تنس","bottle":"زجاجة","wine glass":"كأس","cup":"كوباية","fork":"شوكة","knife":"سكينة",
+  "spoon":"معلقة","bowl":"طبق عميق","banana":"موز","apple":"تفاح","sandwich":"ساندوتش","orange":"برتقال",
+  "broccoli":"بروكلي","carrot":"جزر","hot dog":"هوت دوج","pizza":"بيتزا","donut":"دونات","cake":"كيكة",
+  "chair":"كرسي","couch":"كنبة","potted plant":"نبات","bed":"سرير","dining table":"ترابيزة","toilet":"مرحاض",
+  "tv":"تليفزيون","laptop":"لاب توب","mouse":"ماوس","remote":"ريموت","keyboard":"كيبورد","cell phone":"موبايل",
+  "microwave":"ميكروويف","oven":"فرن","toaster":"محمصة","sink":"حوض","refrigerator":"تلاجة","book":"كتاب",
+  "clock":"ساعة","vase":"مزهرية","scissors":"مقص","teddy bear":"دبدوب","hair drier":"سشوار","toothbrush":"فرشة أسنان"
+};
+const arName = c => AR[c] || c;
+const hue = s => { let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+const color = c => `hsl(${hue(c)} 75% 58%)`;
+
+// ---------- الحالة ----------
+const TF_URL = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0';
+const COCO_URL = 'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3';
+const PW = 320; let PH = 240;
+const small = document.createElement('canvas'), sctx = small.getContext('2d', { willReadFrequently: true });
+const maskCanvas = document.createElement('canvas'), mctx = maskCanvas.getContext('2d');
+const tile = document.createElement('canvas'), tctx = tile.getContext('2d');
+
+let model = null, modelBase = null, modelLoading = null, modelLoadingBase = null;
+let stream = null, track = null, torchOn = false, wakeLock = null;
+let source = 'camera', stillReady = false, frozen = false, looping = false;
+let facing = 'environment', tool = 'pick';
+
+let objDets = [], totals = {}, tracks = [], nextId = 1;
+const hidden = new Set(), known = new Set();
+const CONFIRM = 4, MAXMISS = 12;
+
+let samples = [], colRes = null, curData = null, lab = null;
+let manual = [], roi = null, roiDraw = false, roiDraft = null;
+let hist = [], lastSig = '', lastSum = 0;
+let stableVal = null, stableAt = 0, spoken = null, toastTimer = null;
+const MAX_SAMPLES = 8;
+
+const hasStream = () => !!(stream && video.videoWidth > 0);
+const hasSource = () => source === 'still' ? stillReady : hasStream();
+const isStatic = () => frozen || source === 'still';
+const srcEl = () => source === 'still' ? still : video;
+const srcDims = () => source === 'still' ? { w: still.width, h: still.height } : { w: video.videoWidth, h: video.videoHeight };
+
+function setStatus(msg, isError, ms) {
+  clearTimeout(toastTimer);
+  if (!msg) { statusEl.hidden = true; return; }
+  statusEl.textContent = msg;
+  statusEl.className = 'status' + (isError ? ' error' : '');
+  statusEl.hidden = false;
+  if (ms) toastTimer = setTimeout(() => { statusEl.hidden = true; }, ms);
+}
+
+// ---------- النموذج ----------
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = () => rej(new Error('script ' + src));
+    document.head.appendChild(s);
+  });
+}
+function ensureModel() {
+  const base = S.accurate ? 'mobilenet_v2' : 'lite_mobilenet_v2';
+  if (model && modelBase === base) return Promise.resolve(model);
+  if (modelLoading && modelLoadingBase === base) return modelLoading;
+  modelLoadingBase = base;
+  modelLoading = (async () => {
+    setStatus('بنحمّل النموذج… (أول مرة بس بتاخد شوية)');
+    try {
+      if (!window.cocoSsd) { await loadScript(TF_URL); await loadScript(COCO_URL); }
+      model = null;
+      model = await window.cocoSsd.load({ base });
+      modelBase = base;
+      setStatus('');
+      return model;
+    } catch (e) {
+      console.error(e);
+      setStatus('النموذج مانزلش. اتأكد من الإنترنت وجرّب تاني.', true);
+      throw e;
+    }
+  })().finally(() => { modelLoading = null; });
+  return modelLoading;
+}
+
+// ---------- الكاميرا والمصدر ----------
+function showSourceEl() { video.hidden = source !== 'camera'; still.hidden = source !== 'still'; }
+function setupProc() {
+  const { w, h } = srcDims();
+  if (!w || !h) return;
+  canvas.width = w; canvas.height = h;
+  PH = Math.max(8, Math.round(PW * h / w));
+  small.width = PW; small.height = PH;
+  maskCanvas.width = PW; maskCanvas.height = PH;
+}
+function setupCaps() {
+  track = stream.getVideoTracks()[0];
+  const caps = (track && track.getCapabilities) ? track.getCapabilities() : {};
+  torchOn = false; $('#btnTorch').textContent = 'شغّل الفلاش';
+  $('#torchRow').hidden = !caps.torch;
+  const z = caps.zoom, zr = $('#zoom');
+  $('#zoomRow').hidden = !z;
+  if (z) {
+    zr.min = z.min; zr.max = z.max; zr.step = z.step || 0.1;
+    zr.value = (track.getSettings && track.getSettings().zoom) || z.min;
+  }
+}
+async function startCamera() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: false
+  });
+  video.srcObject = stream;
+  await video.play();
+  source = 'camera';
+  showSourceEl(); setupProc(); setupCaps();
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (_) {}
+}
+function resetFrame() {
+  hist = []; objDets = []; colRes = null; tracks = []; manual = []; lastSig = '';
+}
+function clearEdits() {
+  manual = [];
+  objDets.forEach(d => { d.excluded = false; });
+  if (colRes && colRes.results) colRes.results.forEach(r => { r.excluded = false; });
+}
+
+async function startFlow() {
+  const btn = $('#btnStart');
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    setStatus('الكاميرا مبتشتغلش إلا لو الصفحة مفتوحة من رابط https. ارفع الملف على استضافة، أو افتحه من localhost. (تقدر تفتح صورة من المعرض من غير كاميرا.)', true);
+    return;
+  }
+  btn.disabled = true;
+  try {
+    await startCamera();
+  } catch (e) {
+    btn.disabled = false;
+    if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) setStatus('محتاج تسمح للمتصفح يستخدم الكاميرا من إعدادات الموقع.', true);
+    else if (e && e.name === 'NotFoundError') setStatus('مفيش كاميرا متاحة على الجهاز ده.', true);
+    else setStatus('الكاميرا مافتحتش. جرّب تاني.', true);
+    return;
+  }
+  btn.disabled = false;
+  $('#intro').hidden = true;
+  frozen = false; resetFrame();
+  updateUI(); render(); renderCounts();
+  if (S.mode === 'col' && !samples.length) setStatus('دوس على قطعة واحدة عشان التطبيق يتعلم لونها.');
+  loop();
+  if (S.mode === 'obj') ensureModel().catch(() => {});
+}
+
+async function resumeCamera() {
+  if (!stream) { await startFlow(); return; }
+  source = 'camera'; showSourceEl(); setupProc();
+  frozen = false; resetFrame(); roiDraw = false;
+  try { await video.play(); } catch (_) {}
+  updateUI(); render(); renderCounts(); loop();
+}
+
+async function loadImageFile(file) {
+  if (!file) return;
+  let bmp;
+  try { bmp = await createImageBitmap(file); }
+  catch (_) { setStatus('الصورة دي مقدرتش أفتحها.', true, 3000); return; }
+  const sc = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  still.width = Math.round(bmp.width * sc); still.height = Math.round(bmp.height * sc);
+  still.getContext('2d').drawImage(bmp, 0, 0, still.width, still.height);
+  if (bmp.close) bmp.close();
+  if (stream) video.pause();
+  source = 'still'; stillReady = true; frozen = true;
+  showSourceEl(); setupProc(); resetFrame();
+  $('#intro').hidden = true;
+  closeDrawer();
+  tool = S.mode === 'col' ? 'pick' : 'exclude';
+  updateUI(); render(); renderCounts();
+  if (S.mode === 'col' && !samples.length) setStatus('دوس على قطعة واحدة في الصورة عشان التطبيق يتعلم لونها.');
+  else setStatus('');
+  refresh();
+}
+
+// ---------- الحلقة ----------
+const raf = () => new Promise(r => requestAnimationFrame(r));
+async function loop() {
+  if (looping) return;
+  looping = true;
+  while (source === 'camera' && hasStream() && !frozen) {
+    if (video.readyState >= 2) { try { await step(); } catch (e) { console.error(e); } }
+    await raf();
+  }
+  looping = false;
+}
+
+let refreshing = false, again = false;
+async function refresh() {
+  if (refreshing) { again = true; return; }
+  refreshing = true;
+  do {
+    again = false;
+    try {
+      if (!hasSource()) { render(); renderCounts(); break; }
+      if (S.mode === 'obj') await ensureModel();
+      await step();
+    } catch (e) { console.error(e); }
+  } while (again);
+  refreshing = false;
+}
+
+async function step() {
+  if (S.mode === 'obj') {
+    if (!model) return;
+    const dets = await detectObjects();
+    if (S.mode !== 'obj') return;
+    handleObj(dets);
+  } else {
+    if (!samples.length) { colRes = null; hist = []; render(); renderCounts(); return; }
+    handleCol(analyzeCol(grabLab()));
+  }
+}
+
+// ---------- وضع الأشياء ----------
+function roiFilter(dets) {
+  if (!roi) return dets;
+  return dets.filter(d => {
+    const cx = d.bbox[0] + d.bbox[2] / 2, cy = d.bbox[1] + d.bbox[3] / 2;
+    return cx >= roi.x && cx <= roi.x + roi.w && cy >= roi.y && cy <= roi.y + roi.h;
+  });
+}
+async function detectObjects() {
+  const el = srcEl(), { w, h } = srcDims(), min = S.thr / 100;
+  let preds = (await model.detect(el, 100, min)).map(p => ({ cls: p.class, score: p.score, bbox: p.bbox }));
+  if (S.tiling) {
+    const tw = Math.round(w * 0.6), th = Math.round(h * 0.6);
+    tile.width = tw; tile.height = th;
+    for (const ox of [0, w - tw]) for (const oy of [0, h - th]) {
+      tctx.drawImage(el, ox, oy, tw, th, 0, 0, tw, th);
+      const tp = await model.detect(tile, 100, min);
+      for (const p of tp) preds.push({ cls: p.class, score: p.score, bbox: [p.bbox[0] + ox, p.bbox[1] + oy, p.bbox[2], p.bbox[3]] });
+    }
+    preds = nms(preds);
+  }
+  return roiFilter(preds);
+}
+function handleObj(dets) {
+  objDets = dets.map(d => ({ cls: d.cls, score: d.score, bbox: d.bbox, excluded: false }));
+  objDets.forEach(d => known.add(d.cls));
+  if (S.sub === 'total') updateTracks(objDets);
+  if (!isStatic()) { hist.push(frameCounts()); if (hist.length > 5) hist.shift(); }
+  render(); renderCounts();
+}
+function affinity(d, t) {
+  const o = iou(d.bbox, t.bbox);
+  const dx = (d.bbox[0] + d.bbox[2] / 2) - (t.bbox[0] + t.bbox[2] / 2);
+  const dy = (d.bbox[1] + d.bbox[3] / 2) - (t.bbox[1] + t.bbox[3] / 2);
+  const dist = Math.hypot(dx, dy) / Math.max(t.bbox[2], t.bbox[3], 1);
+  if (o > 0.2) return o + 1;
+  if (dist < 0.6) return 1 - dist;
+  return 0;
+}
+function updateTracks(dets) {
+  const pairs = [];
+  dets.forEach((d, i) => tracks.forEach((t, j) => {
+    if (t.cls !== d.cls) return;
+    const a = affinity(d, t);
+    if (a > 0) pairs.push([a, i, j]);
+  }));
+  pairs.sort((p, q) => q[0] - p[0]);
+  const dUsed = new Set(), tUsed = new Set();
+  for (const [, i, j] of pairs) {
+    if (dUsed.has(i) || tUsed.has(j)) continue;
+    dUsed.add(i); tUsed.add(j);
+    const t = tracks[j];
+    t.bbox = dets[i].bbox; t.hits++; t.missed = 0;
+    dets[i].track = t;
+    if (!t.counted && t.hits >= CONFIRM) {
+      t.counted = true;
+      totals[t.cls] = (totals[t.cls] || 0) + 1;
+      try { navigator.vibrate?.(12); } catch (_) {}
+    }
+  }
+  tracks.forEach((t, j) => { if (!tUsed.has(j)) t.missed++; });
+  dets.forEach((d, i) => {
+    if (dUsed.has(i)) return;
+    const t = { id: nextId++, cls: d.cls, bbox: d.bbox, hits: 1, missed: 0, counted: false };
+    tracks.push(t); d.track = t;
+  });
+  tracks = tracks.filter(t => t.missed <= MAXMISS);
+}
+
+// ---------- وضع الألوان ----------
+function grabLab() {
+  sctx.drawImage(srcEl(), 0, 0, PW, PH);
+  curData = sctx.getImageData(0, 0, PW, PH).data;
+  const n = PW * PH;
+  if (!lab || lab.length !== n * 3) lab = new Float32Array(n * 3);
+  labFromRGBA(curData, n, lab);
+  return lab;
+}
+function roiSmall() {
+  if (!roi) return null;
+  const { w, h } = srcDims(), kx = PW / w, ky = PH / h;
+  return { x0: Math.max(0, Math.floor(roi.x * kx)), y0: Math.max(0, Math.floor(roi.y * ky)),
+           x1: Math.min(PW, Math.ceil((roi.x + roi.w) * kx)), y1: Math.min(PH, Math.ceil((roi.y + roi.h) * ky)) };
+}
+function applyRoi(mask, r) {
+  for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) {
+    if (x < r.x0 || x >= r.x1 || y < r.y0 || y >= r.y1) mask[y * PW + x] = 0;
+  }
+}
+function refArea() {
+  const areas = samples.map(s => s.area).filter(Boolean);
+  return areas.length ? median(areas) * S.size / 100 : null;
+}
+function analyzeCol(lb) {
+  const n = PW * PH;
+  const { mask, idx } = segment(lb, n, samples, S.tol);
+  const r = roiSmall();
+  if (r) applyRoi(mask, r);
+  let cov = 0; for (let p = 0; p < n; p++) cov += mask[p];
+  const denom = r ? Math.max(1, (r.x1 - r.x0) * (r.y1 - r.y0)) : n;
+  if (cov / denom > 0.55) return { tooMuch: true, results: [], mask: null };
+
+  const m2 = dilate(erode(mask, PW, PH), PW, PH);
+  const { labels, comps } = components(m2, PW, PH);
+  const dt = distanceTransform(m2, PW, PH);
+  const ref = refArea(), rad = ref ? Math.sqrt(ref / Math.PI) : null, minA = ref ? ref * 0.45 : 40;
+  const SN = samples.length, votes = new Int32Array(comps.length * SN);
+  for (let p = 0; p < n; p++) { const l = labels[p], i = idx[p]; if (l && i < SN) votes[(l - 1) * SN + i]++; }
+
+  const results = [];
+  for (const c of comps) {
+    if (c.area < minA) continue;
+    let sample = 0, bv = -1;
+    for (let s = 0; s < SN; s++) { const v = votes[(c.id - 1) * SN + s]; if (v > bv) { bv = v; sample = s; } }
+    let count = 1, markers = [{ x: c.cx, y: c.cy }];
+    if (ref) {
+      const peaks = findPeaks(dt, labels, c.id, c, PW, rad);
+      count = estimateCount(c.area, peaks.length, ref);
+      markers = count === 1 ? [{ x: c.cx, y: c.cy }] : (peaks.length === count ? peaks : []);
+    }
+    results.push({ ...c, count, sample, markers, excluded: false });
+  }
+  return { results, mask: m2, tooMuch: false };
+}
+function handleCol(res) {
+  colRes = res;
+  if (res.tooMuch) setStatus('اللون ده قريب من الخلفية. جرّب سطح سادة بلون مختلف عن القطع.', false);
+  else if (!statusEl.hidden && !statusEl.classList.contains('error')) setStatus('');
+  if (!isStatic()) { hist.push(frameCounts()); if (hist.length > 5) hist.shift(); }
+  render(); renderCounts();
+}
+
+function pickColor(px, py) {
+  if (!hasSource()) return;
+  if (samples.length >= MAX_SAMPLES) { setStatus('الحد الأقصى 8 ألوان. امسح لون من الشريط.', false, 2500); return; }
+  const { w, h } = srcDims();
+  const sx = Math.round(px * PW / w), sy = Math.round(py * PH / h);
+  if (sx < 0 || sy < 0 || sx >= PW || sy >= PH) return;
+  const lb = grabLab(), n = PW * PH;
+  let L = 0, a = 0, b = 0, rr = 0, gg = 0, bb = 0, c = 0;
+  for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+    const x = sx + dx, y = sy + dy;
+    if (x < 0 || y < 0 || x >= PW || y >= PH) continue;
+    const p = y * PW + x;
+    L += lb[p * 3]; a += lb[p * 3 + 1]; b += lb[p * 3 + 2];
+    rr += curData[p * 4]; gg += curData[p * 4 + 1]; bb += curData[p * 4 + 2]; c++;
+  }
+  const smp = { L: L / c, a: a / c, b: b / c, css: `rgb(${(rr / c) | 0},${(gg / c) | 0},${(bb / c) | 0})`, area: null };
+  samples.push(smp);
+  const only = samples.length - 1;
+  const { mask } = segment(lb, n, samples, S.tol, only);
+  let cov = 0; for (let p = 0; p < n; p++) cov += mask[p];
+  if (cov / n > 0.55) {
+    samples.pop();
+    setStatus('اللون ده قريب من الخلفية. جرّب سطح سادة بلون مختلف عن القطع.', false, 3500);
+    return;
+  }
+  // معايرة حجم القطعة: لو البقعة ملزوقة في غيرها نستخدم نصف قطر أقرب قمة بدل المساحة كلها
+  const m2 = dilate(erode(mask, PW, PH), PW, PH);
+  const { labels, comps } = components(m2, PW, PH);
+  const dt = distanceTransform(m2, PW, PH);
+  let hit = 0, rPeak = 0;
+  for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+    const x = sx + dx, y = sy + dy;
+    if (x < 0 || y < 0 || x >= PW || y >= PH) continue;
+    const p = y * PW + x;
+    if (labels[p]) { if (!hit) hit = labels[p]; if (labels[p] === hit && dt[p] > rPeak) rPeak = dt[p]; }
+  }
+  if (hit) {
+    const aBlob = comps[hit - 1].area, aDisc = Math.PI * rPeak * rPeak;
+    smp.area = (aDisc > 0 && aBlob > aDisc * 1.5) ? aDisc : aBlob;
+    setStatus('');
+  } else {
+    setStatus('مقدرتش أميّز القطعة دي. جرّب تدوس على مكان تاني فيها أو زوّد تسامح اللون.', false, 3500);
+  }
+  hist = []; lastSig = '';
+  if (isStatic()) refresh();
+}
+
+// ---------- الرسم ----------
+function frameCounts() {
+  const m = {};
+  if (S.mode === 'obj') {
+    if (S.sub === 'total') { for (const k in totals) m[k] = totals[k]; }
+    else for (const d of objDets) { if (!d.excluded) m[d.cls] = (m[d.cls] || 0) + 1; }
+  } else if (colRes) {
+    for (const r of colRes.results) { if (r.excluded) continue; const k = 'c' + r.sample; m[k] = (m[k] || 0) + r.count; }
+  }
+  return m;
+}
+function displayMap() {
+  if (isStatic() || (S.mode === 'obj' && S.sub === 'total') || !hist.length) return frameCounts();
+  const keys = new Set(); hist.forEach(h => Object.keys(h).forEach(k => keys.add(k)));
+  const out = {}; keys.forEach(k => { out[k] = median(hist.map(h => h[k] || 0)); });
+  return out;
+}
+
+function render() {
+  const W = canvas.width, H = canvas.height;
+  if (!W || !H) return;
+  ctx.clearRect(0, 0, W, H);
+  const fs = Math.max(14, Math.round(W / 42)), lw = Math.max(2, W / 380);
+  ctx.font = `600 ${fs}px "Readex Pro",system-ui,sans-serif`;
+  ctx.direction = 'rtl'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  if (S.mode === 'obj') drawObj(W, H, fs, lw); else drawCol(W, H, fs, lw);
+  drawManual(fs, lw);
+  drawRoi(W, H, lw);
+}
+function labelChip(text, x, y, W, fs, bg, fg) {
+  const pad = fs * 0.4, tw = ctx.measureText(text).width, bh = fs * 1.55;
+  const lx = Math.max(0, Math.min(x, W - (tw + pad * 2)));
+  const ly = y - bh >= 0 ? y - bh : y;
+  ctx.fillStyle = bg; ctx.fillRect(lx, ly, tw + pad * 2, bh);
+  ctx.fillStyle = fg; ctx.fillText(text, lx + pad, ly + bh / 2);
+}
+function drawObj(W, H, fs, lw) {
+  const idx = {};
+  for (const d of objDets) {
+    if (hidden.has(d.cls)) continue;
+    const [x, y, w, h] = d.bbox;
+    const col = d.excluded ? '#9AA6A1' : color(d.cls);
+    const pending = S.sub === 'total' && d.track && !d.track.counted;
+    ctx.lineWidth = lw; ctx.strokeStyle = col;
+    ctx.setLineDash(d.excluded || pending ? [lw * 3, lw * 3] : []);
+    ctx.strokeRect(x, y, w, h); ctx.setLineDash([]);
+    let label = arName(d.cls);
+    if (!d.excluded) {
+      idx[d.cls] = (idx[d.cls] || 0) + 1;
+      label += S.sub === 'total' && d.track ? ' #' + d.track.id : ' ' + idx[d.cls];
+    }
+    labelChip(label, x, y, W, fs, col, '#0B1411');
+  }
+}
+function drawCol(W, H, fs, lw) {
+  if (!colRes || !colRes.results) return;
+  const s = W / PW;
+  if (S.showMask && colRes.mask) {
+    const img = mctx.createImageData(PW, PH), d = img.data, m = colRes.mask;
+    for (let p = 0; p < m.length; p++) if (m[p]) { const i = p * 4; d[i] = 255; d[i + 1] = 210; d[i + 2] = 63; d[i + 3] = 105; }
+    mctx.putImageData(img, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(maskCanvas, 0, 0, W, H);
+  }
+  const list = [...colRes.results].sort((a, b) => (a.cy - b.cy) || (a.cx - b.cx));
+  let n = 0;
+  for (const r of list) {
+    const x = r.minx * s, y = r.miny * s, w = (r.maxx - r.minx + 1) * s, h = (r.maxy - r.miny + 1) * s;
+    if (r.excluded) {
+      ctx.lineWidth = lw; ctx.strokeStyle = '#9AA6A1'; ctx.setLineDash([lw * 3, lw * 3]);
+      ctx.strokeRect(x, y, w, h); ctx.setLineDash([]);
+      continue;
+    }
+    const numbered = r.markers.length === r.count;
+    if (r.count > 1 || !numbered) {
+      ctx.lineWidth = lw + 3; ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.strokeRect(x, y, w, h);
+      ctx.lineWidth = lw; ctx.strokeStyle = '#fff'; ctx.strokeRect(x, y, w, h);
+    }
+    if (numbered) {
+      const mk = [...r.markers].sort((a, b) => (a.y - b.y) || (a.x - b.x));
+      for (const p of mk) {
+        n++;
+        const rad = fs * 0.85;
+        ctx.fillStyle = 'rgba(20,35,31,.82)';
+        ctx.beginPath(); ctx.arc(p.x * s, p.y * s, rad, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+        ctx.fillText(String(n), p.x * s, p.y * s + 1);
+        ctx.textAlign = 'left';
+      }
+    } else {
+      labelChip('×' + r.count, x, y, W, fs, '#14231F', '#fff');
+      n += r.count;
+    }
+  }
+}
+function drawManual(fs, lw) {
+  for (const m of manual) {
+    const rad = fs * 0.85;
+    ctx.fillStyle = '#F2B84B';
+    ctx.beginPath(); ctx.arc(m.x, m.y, rad, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = lw; ctx.strokeStyle = '#14231F'; ctx.stroke();
+    ctx.fillStyle = '#14231F'; ctx.textAlign = 'center';
+    ctx.fillText('+', m.x, m.y + 1); ctx.textAlign = 'left';
+  }
+}
+function drawRoi(W, H, lw) {
+  const r = roiDraft || roi;
+  if (!r) return;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,.45)';
+  ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.rect(r.x, r.y, r.w, r.h); ctx.fill('evenodd');
+  ctx.setLineDash([lw * 4, lw * 3]); ctx.strokeStyle = '#F2B84B'; ctx.lineWidth = lw * 1.5;
+  ctx.strokeRect(r.x, r.y, r.w, r.h);
+  ctx.restore();
+}
+
+// ---------- العدّادات والشرائح ----------
+function buildItems() {
+  const map = displayMap(), items = []; let sum = 0;
+  if (S.mode === 'obj') {
+    const keys = Object.keys(map).sort((a, b) => map[b] - map[a]);
+    hidden.forEach(k => { if (!(k in map) && known.has(k)) keys.push(k); });
+    for (const k of keys) {
+      const off = hidden.has(k), n = map[k] || 0;
+      if (!n && !off) continue;
+      items.push({ type: 'o', key: k, name: arName(k), count: n, css: color(k), off });
+      if (!off) sum += n;
+    }
+  } else {
+    samples.forEach((smp, i) => {
+      const n = map['c' + i] || 0;
+      items.push({ type: 'c', key: String(i), name: 'لون ' + (i + 1), count: n, css: smp.css, off: false });
+      sum += n;
+    });
+  }
+  if (manual.length) { items.push({ type: 'm', key: 'm', name: 'يدوي', count: manual.length, css: '#F2B84B', off: false }); sum += manual.length; }
+  return { items, sum };
+}
+function hintText() {
+  if (S.mode === 'col') return 'دوس على قطعة واحدة في الصورة عشان التطبيق يتعلم لونها. لو فيه ألوان مختلفة، دوس على كل لون.';
+  return S.sub === 'total' ? 'اتحرك بالموبايل ببطء حوالين الحاجات، وكل حاجة هتتعد مرة واحدة بس.' : 'وجّه الكاميرا ناحية الحاجات اللي عايز تعدّها.';
+}
+function renderCounts() {
+  const { items, sum } = buildItems();
+  const sig = S.mode + S.sub + '|' + sum + '|' + items.map(i => i.type + i.key + i.count + i.off + i.css).join(',');
+  if (sig === lastSig) return;
+  lastSig = sig;
+  if (sum !== lastSum) {
+    lastSum = sum;
+    totalEl.classList.add('bump'); setTimeout(() => totalEl.classList.remove('bump'), 130);
+    stableVal = sum; stableAt = performance.now(); stableEl.hidden = true;
+    if (sum === 0) spoken = null;
+  }
+  totalEl.textContent = sum;
+  if (!items.length) { chipsEl.innerHTML = `<p class="hint">${hintText()}</p>`; return; }
+  chipsEl.innerHTML = items.map(i => {
+    if (i.type === 'o') return `<button class="chip${i.off ? ' off' : ''}" data-t="o" data-k="${i.key}" aria-pressed="${!i.off}"><i style="background:${i.css}"></i>${i.name} <b>${i.count}</b></button>`;
+    if (i.type === 'c') return `<button class="chip" data-t="c" data-i="${i.key}" aria-label="احذف ${i.name}"><i style="background:${i.css}"></i><b>${i.count}</b><span class="x">×</span></button>`;
+    return `<button class="chip" data-t="m" aria-label="امسح العد اليدوي"><i style="background:${i.css};text-align:center;line-height:12px;font-size:11px">+</i>${i.name} <b>${i.count}</b><span class="x">×</span></button>`;
+  }).join('');
+}
+setInterval(() => {
+  if (stableVal == null || lastSum <= 0) { stableEl.hidden = true; return; }
+  if (performance.now() - stableAt < 1500) return;
+  if (hasSource()) stableEl.hidden = false;
+  if (S.speak && spoken !== lastSum && 'speechSynthesis' in window) {
+    spoken = lastSum;
+    try {
+      const u = new SpeechSynthesisUtterance(String(lastSum)); u.lang = 'ar-EG';
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+      navigator.vibrate?.(30);
+    } catch (_) {}
+  }
+}, 400);
+
+// ---------- اللمس والمنطقة ----------
+function toSrc(e) {
+  const r = canvas.getBoundingClientRect();
+  const sc = Math.min(r.width / canvas.width, r.height / canvas.height) || 1;
+  const ox = (r.width - canvas.width * sc) / 2, oy = (r.height - canvas.height * sc) / 2;
+  return { x: (e.clientX - r.left - ox) / sc, y: (e.clientY - r.top - oy) / sc };
+}
+function rectFrom(p) {
+  const x0 = Math.max(0, Math.min(p.x0, p.x)), y0 = Math.max(0, Math.min(p.y0, p.y));
+  const x1 = Math.min(canvas.width, Math.max(p.x0, p.x)), y1 = Math.min(canvas.height, Math.max(p.y0, p.y));
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+let ptr = null;
+canvas.addEventListener('pointerdown', e => {
+  const p = toSrc(e);
+  ptr = { x0: p.x, y0: p.y, x: p.x, y: p.y, sx: e.clientX, sy: e.clientY };
+  try { canvas.setPointerCapture?.(e.pointerId); } catch (_) {}
+});
+canvas.addEventListener('pointermove', e => {
+  if (!ptr) return;
+  const p = toSrc(e); ptr.x = p.x; ptr.y = p.y;
+  if (roiDraw) { roiDraft = rectFrom(ptr); render(); }
+});
+canvas.addEventListener('pointerup', e => {
+  if (!ptr) return;
+  const moved = Math.hypot(e.clientX - ptr.sx, e.clientY - ptr.sy), pt = ptr;
+  ptr = null;
+  if (roiDraw) {
+    const d = roiDraft;
+    roiDraft = null; roiDraw = false; setStatus('');
+    if (d && moved > 20 && d.w > 20 && d.h > 20) roi = d;
+    hist = []; lastSig = '';
+    updateUI(); render();
+    if (isStatic()) refresh();
+    return;
+  }
+  if (moved < 12) handleTap(pt.x0, pt.y0);
+});
+canvas.addEventListener('pointercancel', () => { ptr = null; roiDraft = null; });
+
+function handleTap(px, py) {
+  if (!hasSource()) return;
+  if (!isStatic()) { if (S.mode === 'col') pickColor(px, py); return; }
+  if (tool === 'pick' && S.mode === 'col') { pickColor(px, py); return; }
+  if (tool === 'add') { manual.push({ x: px, y: py }); }
+  else removeAt(px, py);
+  lastSig = ''; render(); renderCounts();
+}
+function removeAt(px, py) {
+  const { w } = srcDims(), rad = Math.max(24, w / 35);
+  let bi = -1, bd = rad;
+  manual.forEach((m, i) => { const d = Math.hypot(m.x - px, m.y - py); if (d < bd) { bd = d; bi = i; } });
+  if (bi >= 0) { manual.splice(bi, 1); return; }
+  let hit = null, ha = Infinity;
+  if (S.mode === 'obj') {
+    for (const d of objDets) {
+      if (hidden.has(d.cls)) continue;
+      const [x, y, bw, bh] = d.bbox;
+      if (px >= x && px <= x + bw && py >= y && py <= y + bh && bw * bh < ha) { hit = d; ha = bw * bh; }
+    }
+  } else if (colRes) {
+    const s = srcDims().w / PW;
+    for (const r of colRes.results) {
+      const x = r.minx * s, y = r.miny * s, bw = (r.maxx - r.minx + 1) * s, bh = (r.maxy - r.miny + 1) * s;
+      if (px >= x && px <= x + bw && py >= y && py <= y + bh && bw * bh < ha) { hit = r; ha = bw * bh; }
+    }
+  }
+  if (hit) hit.excluded = !hit.excluded;
+}
+
+chipsEl.addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  const t = b.dataset.t;
+  if (t === 'o') { const k = b.dataset.k; hidden.has(k) ? hidden.delete(k) : hidden.add(k); }
+  else if (t === 'c') { samples.splice(+b.dataset.i, 1); hist = []; }
+  else if (t === 'm') { manual = []; }
+  lastSig = ''; render(); renderCounts();
+  if (t === 'c' && isStatic()) refresh();
+});
+
+// ---------- الواجهة ----------
+function updateUI() {
+  document.body.dataset.mode = S.mode;
+  const press = (id, v) => $(id).setAttribute('aria-pressed', String(!!v));
+  press('#modeObj', S.mode === 'obj'); press('#modeCol', S.mode === 'col');
+  press('#subLive', S.sub === 'live'); press('#subTotal', S.sub === 'total');
+  press('#toolPick', tool === 'pick'); press('#toolEx', tool === 'exclude'); press('#toolAdd', tool === 'add');
+  $('#toolSeg').hidden = !isStatic();
+  $('#row3').hidden = !(S.mode === 'obj' || isStatic());
+  const f = $('#btnFreeze');
+  f.textContent = source === 'still' ? 'ارجع للكاميرا' : (frozen ? 'كمّل' : 'ثبّت الصورة');
+  $('#btnRoiClear').disabled = !roi;
+  $('#btnRoi').textContent = roiDraw ? 'اسحب على الشاشة…' : 'حدد';
+}
+function setMode(m) {
+  if (S.mode === m) return;
+  S.mode = m; saveSettings();
+  hist = []; objDets = []; colRes = null; tracks = []; manual = []; lastSig = '';
+  if (isStatic()) tool = m === 'col' && !samples.length ? 'pick' : 'exclude';
+  updateUI(); render(); renderCounts();
+  if (m === 'col' && !samples.length && hasSource()) setStatus('دوس على قطعة واحدة عشان التطبيق يتعلم لونها.', false, 4000);
+  else setStatus('');
+  if (m === 'obj') ensureModel().catch(() => {});
+  if (isStatic()) refresh();
+}
+function setSub(v) {
+  S.sub = v; saveSettings(); hist = []; lastSig = '';
+  if (v === 'total') { totals = {}; tracks = []; nextId = 1; }
+  updateUI(); render(); renderCounts();
+}
+function openDrawer() { $('#drawer').hidden = false; $('#backdrop').hidden = false; $('#btnMore').setAttribute('aria-expanded', 'true'); renderLists(); }
+function closeDrawer() { $('#drawer').hidden = true; $('#backdrop').hidden = true; $('#btnMore').setAttribute('aria-expanded', 'false'); }
+
+$('#modeObj').addEventListener('click', () => setMode('obj'));
+$('#modeCol').addEventListener('click', () => setMode('col'));
+$('#subLive').addEventListener('click', () => setSub('live'));
+$('#subTotal').addEventListener('click', () => setSub('total'));
+$('#toolPick').addEventListener('click', () => { tool = 'pick'; updateUI(); });
+$('#toolEx').addEventListener('click', () => { tool = 'exclude'; updateUI(); });
+$('#toolAdd').addEventListener('click', () => { tool = 'add'; updateUI(); });
+$('#btnMore').addEventListener('click', openDrawer);
+$('#btnCloseDrawer').addEventListener('click', closeDrawer);
+$('#backdrop').addEventListener('click', closeDrawer);
+$('#btnStart').addEventListener('click', startFlow);
+$('#btnIntroFile').addEventListener('click', () => $('#file').click());
+$('#btnOpen').addEventListener('click', () => $('#file').click());
+$('#file').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; loadImageFile(f); });
+
+$('#btnFreeze').addEventListener('click', async () => {
+  if (source === 'still') { await resumeCamera(); return; }
+  if (!hasStream()) return;
+  frozen = !frozen;
+  if (frozen) {
+    video.pause();
+    tool = (S.mode === 'col' && !samples.length) ? 'pick' : 'exclude';
+    setStatus(S.mode === 'col'
+      ? 'دوس على بقعة غلط عشان تستبعدها، أو اختار «أضف» وادوس على قطعة ناقصة.'
+      : 'دوس على أي مربع غلط عشان تستبعده، أو اختار «أضف» وادوس على حاجة ناقصة.', false, 4500);
+  } else {
+    clearEdits(); hist = []; setStatus('');
+    try { await video.play(); } catch (_) {}
+    loop();
+  }
+  lastSig = ''; updateUI(); render(); renderCounts();
+});
+
+$('#btnReset').addEventListener('click', () => {
+  totals = {}; tracks = []; nextId = 1; hidden.clear(); manual = []; hist = [];
+  clearEdits(); lastSig = ''; render(); renderCounts(); closeDrawer();
+});
+$('#btnClearColors').addEventListener('click', () => {
+  samples = []; colRes = null; hist = []; lastSig = ''; render(); renderCounts(); closeDrawer();
+  if (hasSource()) setStatus('دوس على قطعة واحدة عشان التطبيق يتعلم لونها.', false, 4000);
+});
+$('#btnRoi').addEventListener('click', () => {
+  if (!hasSource()) { setStatus('شغّل الكاميرا أو افتح صورة الأول.', false, 2500); return; }
+  roiDraw = true; closeDrawer(); updateUI();
+  setStatus('اسحب بإصبعك على الشاشة عشان تحدد المنطقة اللي هتتعد.', false, 4000);
+});
+$('#btnRoiClear').addEventListener('click', () => {
+  roi = null; hist = []; lastSig = ''; updateUI(); render();
+  if (isStatic()) refresh();
+});
+$('#btnFlip').addEventListener('click', async () => {
+  if (source === 'still' || !stream) { setStatus('شغّل الكاميرا الأول.', false, 2500); return; }
+  facing = facing === 'environment' ? 'user' : 'environment';
+  try {
+    frozen = false; resetFrame();
+    await startCamera();
+    updateUI(); render(); renderCounts(); loop();
+  } catch (_) { setStatus('الكاميرا التانية مش متاحة.', true, 3000); }
+});
+$('#btnTorch').addEventListener('click', async () => {
+  if (!track) return;
+  try {
+    torchOn = !torchOn;
+    await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+    $('#btnTorch').textContent = torchOn ? 'طفّي الفلاش' : 'شغّل الفلاش';
+  } catch (_) { torchOn = false; setStatus('الفلاش مش متاح على الكاميرا دي.', false, 2500); }
+});
+$('#zoom').addEventListener('input', e => {
+  if (track) track.applyConstraints({ advanced: [{ zoom: +e.target.value }] }).catch(() => {});
+});
+
+function bindRange(id, key, valId, cb) {
+  const el = $(id); el.value = S[key]; if (valId) $(valId).textContent = S[key];
+  el.addEventListener('input', () => {
+    S[key] = +el.value; if (valId) $(valId).textContent = S[key]; saveSettings();
+    hist = []; if (cb) cb();
+  });
+}
+function bindCheck(id, key, cb) {
+  const el = $(id); el.checked = !!S[key];
+  el.addEventListener('change', () => { S[key] = el.checked; saveSettings(); if (cb) cb(); });
+}
+const reRun = () => { if (isStatic()) refresh(); };
+bindRange('#thr', 'thr', '#thrVal', reRun);
+bindRange('#tol', 'tol', '#tolVal', reRun);
+bindRange('#size', 'size', '#sizeVal', reRun);
+bindCheck('#accurate', 'accurate', () => { model = null; modelBase = null; if (S.mode === 'obj' && hasSource()) { ensureModel().then(reRun).catch(() => {}); } });
+bindCheck('#tiling', 'tiling', () => { hist = []; reRun(); });
+bindCheck('#showMask', 'showMask', () => render());
+bindCheck('#speak', 'speak', () => { spoken = null; });
+
+// ---------- السجل والتصدير والملفات ----------
+function strip(items, sum) {
+  const parts = items.filter(i => !i.off && i.count > 0).slice(0, 6).map(i => `${i.name}: ${i.count}`);
+  return `الإجمالي ${sum}` + (parts.length ? ' — ' + parts.join(' | ') : '');
+}
+function composite(maxW, withStrip) {
+  const { w, h } = srcDims(), sc = Math.min(1, maxW / w);
+  const cw = Math.round(w * sc), ch = Math.round(h * sc), sh = withStrip ? Math.max(34, Math.round(cw / 14)) : 0;
+  const c = document.createElement('canvas'); c.width = cw; c.height = ch + sh;
+  const g = c.getContext('2d');
+  g.drawImage(srcEl(), 0, 0, cw, ch);
+  g.drawImage(canvas, 0, 0, cw, ch);
+  if (withStrip) {
+    const { items, sum } = buildItems();
+    g.fillStyle = '#14231F'; g.fillRect(0, ch, cw, sh);
+    g.fillStyle = '#fff'; g.font = `600 ${Math.round(sh * 0.5)}px "Readex Pro",system-ui,sans-serif`;
+    g.direction = 'rtl'; g.textAlign = 'right'; g.textBaseline = 'middle';
+    g.fillText(strip(items, sum), cw - 14, ch + sh / 2, cw - 28);
+  }
+  return c;
+}
+const fmtDate = t => new Date(t).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' });
+const modeName = m => m === 'col' ? 'ألوان' : 'أشياء';
+
+function saveRecord() {
+  if (!hasSource()) { setStatus('مفيش حاجة تتحفظ لسه.', false, 2500); return; }
+  const { items, sum } = buildItems();
+  const rec = {
+    id: Date.now(), t: Date.now(), mode: S.mode, total: sum,
+    items: items.filter(i => !i.off && i.count > 0).map(i => ({ name: i.name, count: i.count })),
+    thumb: composite(240, false).toDataURL('image/jpeg', 0.6)
+  };
+  const h = store.get('counter.history.v1', []);
+  h.unshift(rec);
+  while (h.length > 30) h.pop();
+  let ok = store.set('counter.history.v1', h);
+  while (!ok && h.length > 1) { h.pop(); ok = store.set('counter.history.v1', h); }
+  setStatus(ok ? `اتحفظ: ${sum}` : 'مقدرتش أحفظ (المساحة ممتلئة).', !ok, 2200);
+  try { navigator.vibrate?.(15); } catch (_) {}
+}
+$('#btnSave').addEventListener('click', saveRecord);
+
+function download(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+$('#btnExport').addEventListener('click', () => {
+  if (!hasSource()) { setStatus('مفيش صورة لسه.', false, 2500); return; }
+  composite(1600, true).toBlob(async blob => {
+    if (!blob) return;
+    const file = new File([blob], `count-${Date.now()}.png`, { type: 'image/png' });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'عدّاد' }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    download(blob, file.name);
+  }, 'image/png');
+});
+$('#btnCsv').addEventListener('click', () => {
+  const h = store.get('counter.history.v1', []);
+  if (!h.length) { setStatus('السجل فاضي.', false, 2000); return; }
+  const esc = s => '"' + String(s).replace(/"/g, '""') + '"';
+  const rows = [['التاريخ', 'الوضع', 'الإجمالي', 'التفاصيل'].map(esc).join(',')];
+  h.forEach(r => rows.push([fmtDate(r.t), modeName(r.mode), r.total, r.items.map(i => `${i.name}: ${i.count}`).join(' | ')].map(esc).join(',')));
+  download(new Blob(['\ufeff' + rows.join('\n')], { type: 'text/csv;charset=utf-8' }), 'counts.csv');
+});
+$('#btnHistClear').addEventListener('click', () => {
+  if (!confirm('تمسح السجل كله؟')) return;
+  store.set('counter.history.v1', []); renderLists();
+});
+
+function renderLists() {
+  const h = store.get('counter.history.v1', []);
+  $('#histList').innerHTML = h.length ? h.map(r => `
+    <div class="item"><img alt="" src="${r.thumb}">
+      <div class="meta"><b>${r.total}</b> · ${modeName(r.mode)}<small>${fmtDate(r.t)}</small><small>${r.items.map(i => i.name + ' ' + i.count).join('، ')}</small></div>
+      <button class="small warn" data-h="${r.id}">حذف</button></div>`).join('') : '<p class="empty">لسه مفيش عدّات محفوظة. دوس «احفظ العد» بعد ما تخلّص.</p>';
+  const p = store.get('counter.profiles.v1', []);
+  $('#profList').innerHTML = p.length ? p.map((r, i) => `
+    <div class="item"><div class="meta"><b>${r.name}</b><small>${r.samples.length} لون</small></div>
+      <button class="small" data-pl="${i}">حمّل</button><button class="small warn" data-pd="${i}">حذف</button></div>`).join('') : '<p class="empty">مفيش ملفات ألوان محفوظة.</p>';
+}
+$('#histList').addEventListener('click', e => {
+  const b = e.target.closest('[data-h]'); if (!b) return;
+  store.set('counter.history.v1', store.get('counter.history.v1', []).filter(r => String(r.id) !== b.dataset.h));
+  renderLists();
+});
+$('#btnProfSave').addEventListener('click', () => {
+  if (!samples.length) { setStatus('التقط لون الأول.', false, 2500); return; }
+  const name = prompt('اسم الملف (مثلاً: كبسولات نيسبرسو)');
+  if (!name || !name.trim()) return;
+  const p = store.get('counter.profiles.v1', []);
+  p.unshift({ name: name.trim(), samples: samples.map(s => ({ ...s })), tol: S.tol, size: S.size });
+  store.set('counter.profiles.v1', p.slice(0, 20)); renderLists();
+});
+$('#profList').addEventListener('click', e => {
+  const l = e.target.closest('[data-pl]'), d = e.target.closest('[data-pd]');
+  const p = store.get('counter.profiles.v1', []);
+  if (l) {
+    const r = p[+l.dataset.pl]; if (!r) return;
+    samples = r.samples.map(s => ({ ...s }));
+    S.tol = r.tol; S.size = r.size; saveSettings();
+    $('#tol').value = S.tol; $('#tolVal').textContent = S.tol;
+    $('#size').value = S.size; $('#sizeVal').textContent = S.size;
+    hist = []; lastSig = ''; colRes = null; closeDrawer(); render(); renderCounts(); reRun();
+    setStatus('اتحمّل الملف. لو المسافة عن القطع اتغيرت، عدّل «حجم القطعة».', false, 4500);
+  } else if (d) {
+    p.splice(+d.dataset.pd, 1); store.set('counter.profiles.v1', p); renderLists();
+  }
+});
+
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && stream) {
+    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (_) {}
+  }
+});
+
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+updateUI(); renderCounts();
+})();
+</script>
+</body>
+</html>
