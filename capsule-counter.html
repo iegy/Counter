@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1B2421">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>عدّاد الكبسولات</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --stage:#1B2421;
+    --sheet:#EEF2EE;
+    --ink:#14231F;
+    --muted:#5C6D67;
+    --line:#CBD6D0;
+    --accent:#0E5C4F;
+    --accent-soft:#D5E6DF;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  [hidden]{display:none!important}
+  html,body{height:100%;margin:0}
+  body{
+    font-family:"Readex Pro",system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;
+    background:var(--stage);color:var(--ink);
+    display:flex;flex-direction:column;height:100dvh;overflow:hidden;
+    -webkit-user-select:none;user-select:none;
+  }
+  button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+  button:focus-visible,input:focus-visible{outline:3px solid #F2B84B;outline-offset:2px}
+
+  .stage{position:relative;flex:1;min-height:0;background:var(--stage)}
+  .stage video,.stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+
+  .status{
+    position:absolute;top:calc(12px + env(safe-area-inset-top));inset-inline:12px;
+    margin:auto;width:fit-content;max-width:calc(100% - 24px);
+    background:rgba(20,35,31,.88);color:#fff;padding:9px 16px;border-radius:16px;
+    font-size:14px;line-height:1.7;text-align:center;
+  }
+  .status.error{background:#8A2B1E}
+
+  .intro{
+    position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;
+    padding:32px 28px;color:#EAF1ED;background:var(--stage);gap:18px;
+  }
+  .intro h1{font-size:48px;line-height:1.2;margin:0;font-weight:600}
+  .intro p{margin:0;font-size:17px;line-height:1.9;color:#B9C8C1;max-width:30em}
+  .go{
+    align-self:flex-start;background:#E8F3EE;color:#0B3D34;font-weight:600;font-size:18px;
+    padding:15px 28px;border-radius:14px;margin-top:6px;
+  }
+  .go:disabled{opacity:.6}
+
+  .sheet{
+    background:var(--sheet);border-radius:22px 22px 0 0;
+    padding:14px 16px calc(14px + env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .total{display:flex;align-items:baseline;gap:10px}
+  .num{font-size:60px;line-height:1;font-weight:600;font-variant-numeric:tabular-nums}
+  .lbl{font-size:16px;color:var(--muted)}
+
+  .chips{
+    display:flex;gap:8px;overflow-x:auto;padding:8px 0 6px;min-height:52px;align-items:center;
+    scrollbar-width:none;
+  }
+  .chips::-webkit-scrollbar{display:none}
+  .chip{
+    flex:none;display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);
+    padding:7px 12px;border-radius:12px;font-size:15px;
+  }
+  .chip i{width:16px;height:16px;border-radius:50%;display:block;border:1px solid rgba(0,0,0,.25)}
+  .chip b{font-variant-numeric:tabular-nums;font-weight:600}
+  .chip .x{color:var(--muted);font-size:17px;line-height:1}
+  .hint{margin:0;color:var(--muted);font-size:14px;line-height:1.7}
+
+  .settings{
+    border-top:1px solid var(--line);padding:10px 0 4px;display:flex;flex-direction:column;gap:12px;font-size:15px;
+  }
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .row input[type=range]{flex:1;max-width:50%;accent-color:var(--accent)}
+  .row input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}
+  .small{padding:8px 14px;border-radius:10px;background:var(--accent-soft);color:#0B3D34;font-size:14px}
+
+  .actions{display:flex;gap:8px;margin-top:4px}
+  .btn{padding:14px 16px;border-radius:14px;font-size:16px;background:#DCE5E0}
+  .btn.main{flex:1;background:var(--accent);color:#fff;font-weight:500}
+
+  @media (prefers-reduced-motion:no-preference){
+    .num{transition:transform .12s}
+    .num.bump{transform:scale(1.08)}
+  }
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+  <video id="video" playsinline muted></video>
+  <canvas id="overlay"></canvas>
+  <div class="status" id="status" hidden></div>
+
+  <div class="intro" id="intro">
+    <h1>عدّاد الكبسولات</h1>
+    <p>حط الكبسولات على سطح سادة، ودوس على كبسولة واحدة من كل لون. التطبيق يتعلم اللون ويعدّ كل الباقي. بيشتغل على موبايلك بدون إنترنت، والصور مبتتبعتش لأي مكان.</p>
+    <button class="go" id="btnStart">شغّل الكاميرا</button>
+  </div>
+</div>
+
+<section class="sheet" aria-label="نتيجة العد">
+  <div class="total" aria-live="polite">
+    <span class="num" id="total">0</span>
+    <span class="lbl">كبسولة</span>
+  </div>
+
+  <div class="chips" id="chips"></div>
+
+  <div class="settings" id="settings" hidden>
+    <div class="row">
+      <label for="tol">تسامح اللون: <span id="tolVal">22</span></label>
+      <input type="range" id="tol" min="8" max="50" value="22">
+    </div>
+    <div class="row">
+      <label for="size">حجم الكبسولة: <span id="sizeVal">100</span>%</label>
+      <input type="range" id="size" min="50" max="200" value="100">
+    </div>
+    <div class="row">
+      <label for="showMask">إظهار المناطق اللي اتعرف عليها</label>
+      <input type="checkbox" id="showMask" checked>
+    </div>
+    <div class="row">
+      <span>الكاميرا</span>
+      <button class="small" id="btnFlip">بدّل الكاميرا</button>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn main" id="btnFreeze">ثبّت الصورة</button>
+    <button class="btn" id="btnClear">امسح الألوان</button>
+    <button class="btn" id="btnSettings" aria-expanded="false">إعدادات</button>
+  </div>
+</section>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const video = $('#video'), canvas = $('#overlay'), ctx = canvas.getContext('2d');
+  const totalEl = $('#total'), chipsEl = $('#chips'), statusEl = $('#status');
+
+  // processing resolution (frames are analysed at this width for speed)
+  const PW = 320;
+  let PH = 240;
+  const small = document.createElement('canvas');
+  const sctx = small.getContext('2d', { willReadFrequently: true });
+  const maskCanvas = document.createElement('canvas');
+  const mctx = maskCanvas.getContext('2d');
+
+  let stream = null, running = false, frozen = false, looping = false, wakeLock = null;
+  let facing = 'environment', tol = 22, sizePct = 100, showMask = true;
+  let samples = [];          // {L,a,b,css,area}
+  let hist = [], lastSig = '', lastTotal = 0, lastRes = null;
+  let curData = null, lab = null, toastTimer = null;
+  const MAX_SAMPLES = 8;
+
+  function setStatus(msg, isError, ms) {
+    clearTimeout(toastTimer);
+    if (!msg) { statusEl.hidden = true; return; }
+    statusEl.textContent = msg;
+    statusEl.className = 'status' + (isError ? ' error' : '');
+    statusEl.hidden = false;
+    if (ms) toastTimer = setTimeout(() => { statusEl.hidden = true; }, ms);
+  }
+
+  // ---------- colour ----------
+  const lin = new Float32Array(256);
+  for (let i = 0; i < 256; i++) { const c = i / 255; lin[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+  const f = t => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+
+  function grabLab() {
+    sctx.drawImage(video, 0, 0, PW, PH);
+    curData = sctx.getImageData(0, 0, PW, PH).data;
+    const n = PW * PH;
+    if (!lab || lab.length !== n * 3) lab = new Float32Array(n * 3);
+    for (let p = 0, i = 0; p < n; p++, i += 4) {
+      const R = lin[curData[i]], G = lin[curData[i + 1]], B = lin[curData[i + 2]];
+      const fx = f((0.4124564 * R + 0.3575761 * G + 0.1804375 * B) / 0.95047);
+      const fy = f(0.2126729 * R + 0.7151522 * G + 0.0721750 * B);
+      const fz = f((0.0193339 * R + 0.1191920 * G + 0.9503041 * B) / 1.08883);
+      const o = p * 3;
+      lab[o] = 116 * fy - 16; lab[o + 1] = 500 * (fx - fy); lab[o + 2] = 200 * (fy - fz);
+    }
+    return lab;
+  }
+
+  // ---------- segmentation ----------
+  function segment(lb, n, only) {
+    const mask = new Uint8Array(n), idx = new Uint8Array(n).fill(255);
+    const t2 = tol * tol;
+    for (let p = 0; p < n; p++) {
+      const o = p * 3, L = lb[o], a = lb[o + 1], b = lb[o + 2];
+      let best = 1e9, bi = -1;
+      for (let s = 0; s < samples.length; s++) {
+        if (only !== undefined && s !== only) continue;
+        const S = samples[s], dL = (L - S.L) * 0.5, da = a - S.a, db = b - S.b;
+        const d = dL * dL + da * da + db * db;
+        if (d < best) { best = d; bi = s; }
+      }
+      if (bi >= 0 && best < t2) { mask[p] = 1; idx[p] = bi; }
+    }
+    return { mask, idx };
+  }
+  function erode(src, w, h) {
+    const d = new Uint8Array(src.length);
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const p = y * w + x;
+      if (src[p] && src[p - 1] && src[p + 1] && src[p - w] && src[p + w] &&
+          src[p - w - 1] && src[p - w + 1] && src[p + w - 1] && src[p + w + 1]) d[p] = 1;
+    }
+    return d;
+  }
+  function dilate(src, w, h) {
+    const d = new Uint8Array(src.length);
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const p = y * w + x;
+      if (src[p] || src[p - 1] || src[p + 1] || src[p - w] || src[p + w] ||
+          src[p - w - 1] || src[p - w + 1] || src[p + w - 1] || src[p + w + 1]) d[p] = 1;
+    }
+    return d;
+  }
+  function components(mask, w, h) {
+    const labels = new Int32Array(mask.length), stack = new Int32Array(mask.length), comps = [];
+    let id = 0;
+    for (let p = 0; p < mask.length; p++) {
+      if (!mask[p] || labels[p]) continue;
+      id++; let sp = 0; stack[sp++] = p; labels[p] = id;
+      let area = 0, minx = w, miny = h, maxx = 0, maxy = 0, sx = 0, sy = 0;
+      while (sp) {
+        const q = stack[--sp], x = q % w, y = (q / w) | 0;
+        area++; sx += x; sy += y;
+        if (x < minx) minx = x; if (x > maxx) maxx = x;
+        if (y < miny) miny = y; if (y > maxy) maxy = y;
+        if (x > 0) { const r = q - 1; if (mask[r] && !labels[r]) { labels[r] = id; stack[sp++] = r; } }
+        if (x < w - 1) { const r = q + 1; if (mask[r] && !labels[r]) { labels[r] = id; stack[sp++] = r; } }
+        if (y > 0) { const r = q - w; if (mask[r] && !labels[r]) { labels[r] = id; stack[sp++] = r; } }
+        if (y < h - 1) { const r = q + w; if (mask[r] && !labels[r]) { labels[r] = id; stack[sp++] = r; } }
+      }
+      comps.push({ id, area, minx, miny, maxx, maxy, cx: sx / area, cy: sy / area });
+    }
+    return { labels, comps };
+  }
+  const median = a => { const s = [...a].sort((x, y) => x - y); return s[(s.length - 1) >> 1]; };
+  function refArea() {
+    const areas = samples.map(s => s.area).filter(Boolean);
+    return areas.length ? median(areas) * sizePct / 100 : null;
+  }
+
+  function analyze(lb) {
+    const n = PW * PH;
+    const { mask, idx } = segment(lb, n);
+    let cov = 0; for (let p = 0; p < n; p++) cov += mask[p];
+    if (cov / n > 0.55) return { tooMuch: true, counts: samples.map(() => 0), results: [] };
+
+    const m2 = dilate(erode(mask, PW, PH), PW, PH);
+    const { labels, comps } = components(m2, PW, PH);
+    const S = samples.length;
+    const votes = new Int32Array(comps.length * S);
+    for (let p = 0; p < n; p++) {
+      const l = labels[p], i = idx[p];
+      if (l && i < S) votes[(l - 1) * S + i]++;
+    }
+    const ref = refArea(), minA = ref ? ref * 0.45 : 40;
+    const counts = new Array(S).fill(0), results = [];
+    for (const c of comps) {
+      if (c.area < minA) continue;
+      let sample = 0, bv = -1;
+      for (let s = 0; s < S; s++) { const v = votes[(c.id - 1) * S + s]; if (v > bv) { bv = v; sample = s; } }
+      const count = ref ? Math.min(60, Math.max(1, Math.round(c.area / ref))) : 1;
+      counts[sample] += count;
+      results.push({ ...c, count, sample });
+    }
+    return { results, counts, mask: m2, idx };
+  }
+
+  // ---------- drawing ----------
+  function draw(res) {
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    if (!res || !res.results) return;
+    const s = W / PW;
+
+    if (showMask && res.mask) {
+      const img = mctx.createImageData(PW, PH), d = img.data;
+      for (let p = 0; p < res.mask.length; p++) {
+        if (res.mask[p]) { const i = p * 4; d[i] = 255; d[i + 1] = 210; d[i + 2] = 63; d[i + 3] = 115; }
+      }
+      mctx.putImageData(img, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(maskCanvas, 0, 0, W, H);
+    }
+
+    const fs = Math.max(14, Math.round(W / 40)), lw = Math.max(2, W / 380);
+    ctx.font = `600 ${fs}px "Readex Pro",system-ui,sans-serif`;
+    ctx.direction = 'rtl'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+
+    const list = [...res.results].sort((a, b) => (a.cy - b.cy) || (a.cx - b.cx));
+    let n = 0;
+    for (const r of list) {
+      const x = r.minx * s, y = r.miny * s, w = (r.maxx - r.minx + 1) * s, h = (r.maxy - r.miny + 1) * s;
+      ctx.lineWidth = lw + 3; ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.strokeRect(x, y, w, h);
+      ctx.lineWidth = lw; ctx.strokeStyle = '#fff'; ctx.strokeRect(x, y, w, h);
+      const label = r.count > 1 ? '×' + r.count : String(n + 1);
+      n += r.count;
+      const pad = fs * 0.4, tw = ctx.measureText(label).width, bh = fs * 1.5;
+      const lx = Math.max(0, Math.min(x, W - (tw + pad * 2)));
+      const ly = y - bh >= 0 ? y - bh : y;
+      ctx.fillStyle = '#14231F'; ctx.fillRect(lx, ly, tw + pad * 2, bh);
+      ctx.fillStyle = '#fff'; ctx.fillText(label, lx + pad, ly + bh / 2);
+    }
+  }
+
+  // ---------- counts UI ----------
+  function display() {
+    const S = samples.length, out = new Array(S).fill(0);
+    if (hist.length) for (let s = 0; s < S; s++) out[s] = median(hist.map(v => v[s] || 0));
+    return out;
+  }
+  function renderCounts(warn) {
+    const counts = display(), sum = counts.reduce((a, b) => a + b, 0);
+    const sig = sum + '|' + samples.map((s, i) => s.css + counts[i]).join(',');
+    if (sig === lastSig) return;
+    lastSig = sig;
+    if (sum !== lastTotal) {
+      lastTotal = sum;
+      totalEl.classList.add('bump');
+      setTimeout(() => totalEl.classList.remove('bump'), 130);
+    }
+    totalEl.textContent = sum;
+    if (!samples.length) {
+      chipsEl.innerHTML = '<p class="hint">دوس على كبسولة واحدة في الصورة عشان التطبيق يتعلم لونها. لو فيه ألوان مختلفة، دوس على كل لون.</p>';
+      return;
+    }
+    chipsEl.innerHTML = samples.map((s, i) =>
+      `<button class="chip" data-i="${i}" aria-label="احذف اللون ${i + 1}"><i style="background:${s.css}"></i><b>${counts[i] || 0}</b><span class="x">×</span></button>`
+    ).join('');
+  }
+
+  function show(res) {
+    lastRes = res;
+    if (res.tooMuch) {
+      draw(null);
+      setStatus('اللون ده قريب من الخلفية. جرّب سطح سادة بلون مختلف عن الكبسولات.', false);
+    } else {
+      if (!statusEl.hidden && !statusEl.classList.contains('error')) setStatus('');
+      draw(res);
+    }
+    hist.push(res.counts); if (hist.length > 5) hist.shift();
+    renderCounts();
+  }
+
+  function refresh() {
+    if (!running || !samples.length) { draw(null); hist = []; renderCounts(); return; }
+    show(analyze(grabLab()));
+  }
+
+  // ---------- camera ----------
+  async function startCamera() {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    PH = Math.round(PW * video.videoHeight / video.videoWidth);
+    small.width = PW; small.height = PH;
+    maskCanvas.width = PW; maskCanvas.height = PH;
+    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (_) {}
+  }
+
+  async function start() {
+    const btn = $('#btnStart');
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      setStatus('الكاميرا مبتشتغلش إلا لو الصفحة مفتوحة من رابط https. ارفع الملف على استضافة، أو افتحه من localhost.', true);
+      return;
+    }
+    btn.disabled = true;
+    try { await startCamera(); }
+    catch (e) {
+      btn.disabled = false;
+      if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) setStatus('محتاج تسمح للمتصفح يستخدم الكاميرا من إعدادات الموقع.', true);
+      else if (e && e.name === 'NotFoundError') setStatus('مفيش كاميرا متاحة على الجهاز ده.', true);
+      else setStatus('الكاميرا مافتحتش. جرّب تاني.', true);
+      return;
+    }
+    $('#intro').hidden = true;
+    running = true;
+    setStatus('دوس على كبسولة واحدة عشان التطبيق يتعلم لونها.');
+    loop();
+  }
+
+  function loop() {
+    if (looping) return;
+    looping = true;
+    const tick = () => {
+      if (!running || frozen) { looping = false; return; }
+      if (samples.length && video.readyState >= 2) show(analyze(grabLab()));
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- interactions ----------
+  canvas.addEventListener('click', e => {
+    if (!running) return;
+    const r = canvas.getBoundingClientRect();
+    const sc = Math.min(r.width / canvas.width, r.height / canvas.height);
+    const ox = (r.width - canvas.width * sc) / 2, oy = (r.height - canvas.height * sc) / 2;
+    const px = (e.clientX - r.left - ox) / sc, py = (e.clientY - r.top - oy) / sc;
+    const sx = Math.round(px * PW / canvas.width), sy = Math.round(py * PH / canvas.height);
+    if (sx < 0 || sy < 0 || sx >= PW || sy >= PH) return;
+    if (samples.length >= MAX_SAMPLES) { setStatus('الحد الأقصى 8 ألوان. امسح الألوان وابدأ من جديد.', false, 2500); return; }
+
+    const lb = grabLab();
+    let L = 0, a = 0, b = 0, rr = 0, gg = 0, bb = 0, c = 0;
+    for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+      const x = sx + dx, y = sy + dy;
+      if (x < 0 || y < 0 || x >= PW || y >= PH) continue;
+      const p = y * PW + x;
+      L += lb[p * 3]; a += lb[p * 3 + 1]; b += lb[p * 3 + 2];
+      rr += curData[p * 4]; gg += curData[p * 4 + 1]; bb += curData[p * 4 + 2]; c++;
+    }
+    const S = { L: L / c, a: a / c, b: b / c, css: `rgb(${(rr / c) | 0},${(gg / c) | 0},${(bb / c) | 0})`, area: null };
+    samples.push(S);
+
+    // calibrate: area of the tapped capsule with this colour alone
+    const n = PW * PH, only = samples.length - 1;
+    const { mask } = segment(lb, n, only);
+    let cov = 0; for (let p = 0; p < n; p++) cov += mask[p];
+    if (cov / n > 0.55) {
+      samples.pop();
+      setStatus('اللون ده قريب من الخلفية. جرّب سطح سادة بلون مختلف عن الكبسولات.', false, 3500);
+      return;
+    }
+    const m2 = dilate(erode(mask, PW, PH), PW, PH);
+    const { labels, comps } = components(m2, PW, PH);
+    let hit = 0;
+    for (let dy = -3; dy <= 3 && !hit; dy++) for (let dx = -3; dx <= 3 && !hit; dx++) {
+      const x = sx + dx, y = sy + dy;
+      if (x >= 0 && y >= 0 && x < PW && y < PH) hit = labels[y * PW + x];
+    }
+    if (hit) { S.area = comps[hit - 1].area; setStatus(''); }
+    else setStatus('مقدرتش أميّز الكبسولة دي. جرّب تدوس على مكان تاني فيها أو زوّد تسامح اللون.', false, 3500);
+
+    hist = []; lastSig = '';
+    refresh();
+  });
+
+  chipsEl.addEventListener('click', e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    samples.splice(+b.dataset.i, 1);
+    hist = []; lastSig = '';
+    refresh();
+  });
+
+  $('#btnClear').addEventListener('click', () => {
+    samples = []; hist = []; lastSig = '';
+    draw(null); renderCounts();
+    if (running) setStatus('دوس على كبسولة واحدة عشان التطبيق يتعلم لونها.');
+  });
+
+  $('#btnFreeze').addEventListener('click', () => {
+    if (!running) return;
+    frozen = !frozen;
+    const b = $('#btnFreeze');
+    if (frozen) { video.pause(); b.textContent = 'كمّل'; }
+    else { video.play(); b.textContent = 'ثبّت الصورة'; hist = []; loop(); }
+  });
+
+  $('#btnSettings').addEventListener('click', e => {
+    const s = $('#settings');
+    s.hidden = !s.hidden;
+    e.currentTarget.setAttribute('aria-expanded', String(!s.hidden));
+  });
+  $('#tol').addEventListener('input', e => {
+    tol = +e.target.value; $('#tolVal').textContent = tol;
+    hist = []; if (frozen) refresh();
+  });
+  $('#size').addEventListener('input', e => {
+    sizePct = +e.target.value; $('#sizeVal').textContent = sizePct;
+    hist = []; if (frozen) refresh();
+  });
+  $('#showMask').addEventListener('change', e => {
+    showMask = e.target.checked;
+    if (frozen && lastRes) draw(lastRes);
+  });
+  $('#btnFlip').addEventListener('click', async () => {
+    facing = facing === 'environment' ? 'user' : 'environment';
+    try {
+      if (frozen) { frozen = false; $('#btnFreeze').textContent = 'ثبّت الصورة'; }
+      await startCamera();
+      hist = []; loop();
+    } catch (_) { setStatus('الكاميرا التانية مش متاحة.', true, 3000); }
+  });
+  $('#btnStart').addEventListener('click', start);
+
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && running) {
+      try { wakeLock = await navigator.wakeLock?.request('screen'); } catch (_) {}
+    }
+  });
+
+  renderCounts();
+})();
+</script>
+</body>
+</html>
